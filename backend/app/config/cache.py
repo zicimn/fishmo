@@ -25,14 +25,14 @@ async def update_version():
     await redis_client.incr("search_version")
 
 
-def get_cache_key(prefix:str,*args,version:int = None,**kwargs) -> str:
+def get_cache_key(prefix: str, *args, version: int = None, **kwargs) -> str:
     key_parts = [prefix]
 
     if version is not None:
-            key_parts.append(f"v{version}")
+        key_parts.append(f"v{version}")
 
     key_parts.extend([str(arg) for arg in args])
-    key_parts.extend([f"{k}={v}" for k, v in sorted(kwargs.items())])
+    key_parts.extend([f"{k}={v}" for k, v in sorted(kwargs.items()) if v is not None])
     return ":".join(key_parts)
 
 

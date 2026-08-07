@@ -1,5 +1,4 @@
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -42,6 +41,7 @@ async def login(
     )
 
     return{
+        "msg":"用户登录信息",
         "id" : user.id,
         "username": user.username,
         "access_token": token
@@ -63,7 +63,7 @@ async def register(
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
-        raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
+        raise HTTPException(status_code=409, detail="用户名或邮箱已存在")
 
     ok = await verify_email_code(data.email, code)
     if not ok:
@@ -83,6 +83,7 @@ async def register(
     await db.refresh(new_user)
 
     return {
+        "msg":"用户注册信息",
         "id": new_user.id,
         "username": new_user.username,
         "email": new_user.email,
@@ -107,13 +108,13 @@ async def update(
     if data.username:
         existing = await db.execute(select(User).where(User.username == data.username, User.id != user_id))
         if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="用户名已存在")
+            raise HTTPException(status_code=409, detail="用户名已存在")
         user.username = data.username
 
     if data.email:
         existing = await db.execute(select(User).where(User.email == data.email, User.id != user_id))
         if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="邮箱已存在")
+            raise HTTPException(status_code=409, detail="邮箱已存在")
         user.email = data.email
 
     if data.bio is not None:
@@ -123,7 +124,7 @@ async def update(
         # Cloudinary 上传是同步 HTTP + PIL 解码（CPU 密集），丢到线程池避免阻塞事件循环
         result = await run_in_threadpool(upload_image_to_cloudinary, data.avatar)
         if not result or not result.get("status"):
-            raise HTTPException(status_code=400, detail="头像上传失败")
+            raise HTTPException(status_code=422, detail="头像上传失败")
         user.avatar = result["url"]
 
     if data.password:
@@ -170,3 +171,36 @@ async def delete(
         "username": user.username
     }
 
+
+@router.get("/")
+async def index(
+    id:Optional[int] = None,
+    credentials:Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db)
+):
+    if not id and not credentials:
+        raise HTTPException(status_code=400,detail="参数错误")
+
+    if not id and credentials:
+        id = verify_login(credentials=credentials)
+
+    result = await db.execute(
+        select(User)
+        .where(User.id == id)
+    )
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(status_code=404,detail="用户不存在")
+
+    return{
+        "msg": "用户信息",
+        "username" :user.username,
+        "avatar" :user.avatar,
+        "bio" :user.bio,
+        "email" : user.email
+    }
+    
+
+
+        
+    

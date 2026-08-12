@@ -1,11 +1,14 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional,List,TYPE_CHECKING
 
 from sqlalchemy import DateTime, Integer, SmallInteger, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column,relationship
 from sqlalchemy.sql import func
 
 from config.db import Base
+
+if TYPE_CHECKING:
+    from .galgame import Galgame
 
 class User(Base):
     __tablename__ = "user"
@@ -23,3 +26,11 @@ class User(Base):
     
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # 集合侧禁止懒加载：任何 User 查询都不应隐式全量加载其 galgames。
+    # 如需加载必须显式 selectinload()，避免登录/注册/查询用户时误触全表扫描。
+    galgames: Mapped[List["Galgame"]] = relationship(
+        "Galgame",
+        back_populates="author",
+        lazy="raise"
+    )

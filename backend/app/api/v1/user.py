@@ -162,7 +162,16 @@ async def delete(
         raise HTTPException(status_code=404, detail="用户不存在")
 
     await db.delete(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # 用户下存在关联作品（galgame.author_id 外键 ondelete=RESTRICT）时，删除会触发
+        # IntegrityError。这里捕获并返回 400，避免未捕获异常导致 500，同时保留用户数据。
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="该用户存在关联作品，无法删除"
+        )
     await update_version()
 
     return {

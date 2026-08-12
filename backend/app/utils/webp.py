@@ -9,8 +9,8 @@ import cloudinary
 import cloudinary.uploader
 
 from config.security import (
-    CLOUNDDINARY_API_KEY,
-    CLOUNDDINARY_API_SECRET,
+    CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET,
     CLOUDINARY_CLOUD_NAME,
 )
 
@@ -31,8 +31,8 @@ MAX_IMAGE_PIXELS = 50_000_000
 
 cloudinary.config(
     cloud_name=CLOUDINARY_CLOUD_NAME,
-    api_key=CLOUNDDINARY_API_KEY,
-    api_secret=CLOUNDDINARY_API_SECRET,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
 )
 
 

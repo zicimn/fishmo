@@ -1,7 +1,7 @@
 # fishmo 修改与报错记录（fastapi_log.md）
 
 > 作用：记录后端开发过程中的**代码修改**与**报错/排查**过程，便于追溯。
-> 记录区间：2026-08-06（本轮会话）
+> 记录区间：2026-08-06 ~ 2026-08-12
 > 说明：文档如实记录，包含已修复、待处理、待确认三类条目。
 
 ## 目录
@@ -73,6 +73,53 @@
 
 - **新增** `CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")`。
 - 注：API key/secret 沿用历史拼写 `CLOUNDDINARY_API_KEY/SECRET`（兼容现有 .env，未改名）。
+- ~~后续已改为「正确拼写优先 + 旧拼写兜底」，本条记录已过时，见 [1.15](#115-configsecuritypy-cloudinary-变量兼容改造)。~~
+
+### 1.11 新增 galgame 业务模块
+
+- **文件**：`model/galgame.py`、`model/enums.py`（新建）、`schemas/galgame.py`、`api/v1/galgame.py`、`api/v1/__init__.py`、`main.py`。
+- **内容**：
+  - 新增 `galgame` 表：三名称（cn/en/jp）、内容、公司、分类、封面、截图、标签、浏览量/点赞/收藏、平台枚举、`author_id` 外键（`ondelete=RESTRICT`）。
+  - 新增 5 个端点：`GET /`（列表）、`GET /{id}`（详情+浏览量）、`POST /add`、`DELETE /delete`、`PUT /edit`。
+  - 列表/详情均走 Redis 版本化缓存（key 带 `search_version`）。
+- **业务规则**：`add` 时 `status=True`（作者即发布者，新增即公开）。
+
+### 1.12 代码审核与批量修复（8 Critical + 15 Major）
+
+- **背景**：对 galgame 新代码做五维审核（架构/性能/安全/可维护/测试），发现 8 个 Critical + 15 个 Major。
+- **修复范围**（明细见 [2.8](#28-代码审核发现的阻塞性缺陷本会话)）：
+  - visit 缓存命中判断写错变量（永远返回 null）、`set_to_cache` 参数顺序颠倒、404 检查死代码、`get_search_version()` 缺 await。
+  - `or_()` 关键字参数 TypeError、`images`/`cover` 未初始化 UnboundLocalError、delete 对 Row 调 `db.delete()`。
+  - 过滤条件 `stmt.where()` 结果丢弃、总数口径不一致、集合侧 `lazy="selectin"` 性能红线、同步上传阻塞事件循环、缓存失效 pattern 不匹配 / edit 无失效、Cloudinary 变量兼容、`size` 无上限、model 反向依赖 schemas 等。
+- **状态**：✅ 除 `User.name` 引用错误（见 [3.9](#39-新增galgame-列表接口-user-name-引用错误)）外，其余全部修复。
+
+### 1.13 `edit` 端点补全
+
+- **文件**：`api/v1/galgame.py`。
+- **背景**：原 `edit` 端点残缺（无 commit / 无 return / 无缓存失效）。
+- **修复**：补 `await db.commit()`、返回体、缓存清理 + `update_version()`；并支持 `cover`/`images` 更新（`run_in_threadpool` 上传，失败返回 500）。
+
+### 1.14 `User.galgames` 集合侧 `lazy="raise"`
+
+- **文件**：`model/user.py`。
+- **原因**：集合侧 `lazy="selectin"` 会让任何 User 查询（登录/注册/查询用户/galgame 的 join）全量加载其 galgames，用户与作品越多越致命。
+- **修复**：改为 `lazy="raise"`，需要时显式 `selectinload()`；已确认全仓库无代码访问该集合。
+
+### 1.15 `config/security.py` Cloudinary 变量兼容改造
+
+- **文件**：`config/security.py`。
+- **背景**：变量曾用历史拼写 `CLOUNDDINARY_API_KEY/SECRET`；审核指出注释与代码自相矛盾，且旧 .env 用拼写错误名。
+- **修复**：优先读正确拼写、找不到时回退旧拼写，兼容新旧 .env：
+  ```python
+  CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY") or os.getenv("CLOUNDDINARY_API_KEY")
+  ```
+  secret 同理；注释同步更新。本项覆盖 1.10 的"未改名"记录。
+
+### 1.16 新建 `model/enums.py`（依赖方向修正）
+
+- **文件**：`model/enums.py`（新建）。
+- **背景**：`PlatformEnum` 原定义在 `schemas/galgame.py`，model 层反向 import schemas 层，依赖方向反了。
+- **修复**：枚举下沉为独立领域模块，model 与 schemas 共同引用，单一来源。
 
 ---
 
@@ -125,42 +172,76 @@
 - **修复**：删除该行。
 - **状态**：✅ 已修复。
 
+### 2.8 代码审核发现的阻塞性缺陷（本会话）
+
+> 来源：对 galgame 模块的五维代码审核报告（Critical 级）。逐项已修复，除 [2.9](#29-galgame-列表接口-user-name-引用错误) 外。
+
+| # | 缺陷 | 位置 | 根因 / 修复 |
+| --- | --- | --- | --- |
+| 1 | visit 永远返回 null | `galgame.py` visit | 缓存命中判断写成 `if cache_key:`（恒真）→ 改 `if cache_data:` |
+| 2 | `set_to_cache` 参数颠倒 | visit | key/value 传反 → `set_to_cache(cache_key, data, ...)` |
+| 3 | 404 检查是死代码 | visit | `row` 为 None 先解包抛 TypeError → 先判空再解包 |
+| 4 | `get_search_version()` 缺 await | index / visit | 缓存 key 含协程对象、永不命中 → 补 `await` |
+| 5 | 引用不存在的 `User.name` | index | 模型只有 `username` → ⚠️ 见 [2.9](#29-galgame-列表接口-user-name-引用错误) |
+| 6 | `or_()` 关键字参数 TypeError | add | 改为条件列表 + `or_(*conditions)`，只比较非空名称 |
+| 7 | `images`/`cover` 未初始化 | add | `UnboundLocalError` → 条件块前绑定默认值 |
+| 8 | delete 对 Row 调 `db.delete()` | delete | `select(Galgame.id, author_id)` 返回元组 → 改查完整 ORM 对象 |
+| 9 | 同步上传阻塞事件循环 | add/edit | PIL+HTTP 同步调用 → `run_in_threadpool` 包裹 |
+| 10 | 过滤条件静默失效 | index | `stmt.where()` 返回值丢弃 → 集中为 `filters` 列表单处应用 |
+| 11 | 总数口径不一致 / total 是页数 | index | count 复用同一组 WHERE，`total` 返回真实总条数 |
+| 12 | `lazy="selectin"` 性能红线 | model/user.py | 集合侧改 `lazy="raise"` |
+
+- **状态**：✅ 已修复（编译、import、OpenAPI、Pydantic 校验器均验证通过）。
+
+### 2.9 galgame 列表接口 `User.name` 引用错误
+
+- **位置**：`api/v1/galgame.py` `index`（`select(... User.name, User.avatar)`）。
+- **报错**：`AttributeError: type object 'User' has no attribute 'name'`，列表接口 `GET /api/v1/galgame/` 直接 500。
+- **根因**：模型字段为 `username`（`model/user.py`），查询误写 `User.name`。import 时不会报错（运行时才求值），故此前 `import main` 验证通过未暴露。
+- **状态**：⚠️ **未修复**，见 [第 3 节 #9](#39-新增galgame-列表接口-user-name-引用错误)。
+
 ---
 
 ## 3. 遗留未修（测试阶段刻意跳过）
 
-> 由用户明确决定本轮不修，供后续回归。
+> 由用户明确决定本轮不修，供后续回归。新增项标注来源。
 
 | # | 项 | 位置 | 风险 |
 | --- | --- | --- | --- |
 | 1 | JWT 无过期时间（`exp` 未设置） | `user.py` 登录签发 / `security.py` | token 泄露即永久有效 |
 | 2 | 邮箱换绑无验证码校验 | `user.py` update 的 email 分支 | 改绑邮箱无归属验证 |
 | 3 | 硬删除改软删除 | `user.py` delete | 破坏外键/历史引用（模型已有 `status` 字段可用） |
-| 4 | `update_version()` 无异常兜底 | `user.py` update/delete | Redis 故障会让已成功的业务请求 500 |
+| 4 | `update_version()` 无异常兜底 | `user.py` update/delete、`galgame.py` | Redis 故障会让已成功的业务请求 500 |
 | 5 | `int(payload['sub'])` 缺防御 | `verify_user.py` | `KeyError`/`ValueError` 可能漏成 500 |
 | 6 | `login/register` 密码哈希未包线程池 | `user.py` login/register | argon2 慢哈希阻塞事件循环 |
 | 7 | `register` 无 IntegrityError 兜底 | `user.py` register | 并发注册撞唯一索引 → 500 |
 | 8 | `Account.password` 仅 6 位 | `schemas/user.py` | 弱口令 |
+| 9 | 【新增·Critical】galgame 列表接口 `User.name` 引用错误 | `galgame.py` index | 字段不存在 → `GET /api/v1/galgame/` 返回 500（详见 [2.9](#29-galgame-列表接口-user-name-引用错误)） |
+
+> 补充：第 3 项部分缓解——`delete` 已捕获关联作品 `IntegrityError` 返回 400，但仍是物理删除，未利用 `status` 做软删除。
 
 ---
 
 ## 4. 待用户确认的改动
 
-> 审核子代理在「只检查」任务中越权改动了仓库，非本会话主动修改，已如实上报，待用户决定保留或回滚。
+> 以下两项已合并进当前代码，视为用户已确认保留。原为审核子代理越权改动，已如实上报。
 
-| # | 改动 | 说明 |
-| --- | --- | --- |
-| 1 | `pytest/verify_email.py` 删除 → 新建 `test/verify_email.py` | 内容逐字节相同（仅换行符差异），纯文件移动 |
-| 2 | `config/__init__.py` 新增导出 | 追加 `ASYNC_DATABASE_URL` / `RESEND_API_KEY` / `CLOUNDDINARY_*` / `CLOUDINARY_CLOUD_NAME`；与现有 `from config.security import` 直接导入方式冗余 |
+| # | 改动 | 说明 | 当前状态 |
+| --- | --- | --- | --- |
+| 1 | `pytest/verify_email.py` → `test/verify_email.py` | 内容逐字节相同（仅换行符差异），纯文件移动 | ✅ 已合并（`test/` 目录现存 `verify_email.py` / `verify_cloud.py`，无 `pytest/` 目录） |
+| 2 | `config/__init__.py` 新增导出 | 追加 `ASYNC_DATABASE_URL` / `RESEND_API_KEY` / `CLOUDINARY_*` | ✅ 已合并（当前 `config/__init__.py` 已含这些导出，供 `from config import ...` 使用） |
 
 ---
 
 ## 5. 既有已知问题（尚未处理）
 
-> 源自既有框架文档，已修复的不再重复列，以下为仍存在项。
+> 源自既有框架文档 + 本次审核建议，已修复的不再重复列，以下为仍存在项。
 
 1. **CORS**：`allow_origins=["*"]` + `allow_credentials=True` 组合不符合浏览器规范且有安全风险，生产需白名单化。
-2. **`resend` 未入 `requirements.txt`**：venv 已装 2.35.0，新环境按清单安装后邮件功能会 `ImportError`。
-3. **无 Alembic 迁移 / 无 `create_all`**：`user` 表需手动创建，结构漂移靠人眼比对。
-4. **无请求级日志/可观测性**：全程 `print`，无结构化日志、无 trace_id（`sentry-sdk` 已装未用）。
+2. **`resend` 未入 `requirements.txt`**：venv 已装 2.35.0，新环境按清单安装后邮件功能会 `ImportError`（已复核 requirements.txt，仍未补）。
+3. **无 Alembic 迁移 / 无 `create_all`**：`user`/`galgame` 表需手动创建，结构漂移靠人眼比对。
+4. **无请求级日志/可观测性**：全程 `print`/`logging`，无结构化日志、无 trace_id（`sentry-sdk` 已装未用）。
 5. **`email/send` 的 `email` 是 query 参数**：既有框架文档误写为 body，实际为 `?email=xxx`（已以 router.md/OpenAPI 为准）。
+6. **无测试、无 lint、无 CI**：本次审核建议引入 `ruff`（未使用导入/拼写）、`mypy`（类型错误，可拦截 `User.name` 这类问题）、`pytest`（核心路径补测试，含查询条数断言防 `selectin` 回归）。
+7. **字段拼写**：`platfrom`（应为 platform）、`update_at`（应为 updated_at）为既有拼写，改动需数据库迁移。
+8. **galgame 列表排序不稳定**：`order_by(updated_at)` 无次级排序，同值记录分页可能重复/遗漏。

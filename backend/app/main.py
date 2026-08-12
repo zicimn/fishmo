@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.v1 import user_router, email_router
+from api.v1 import user_router, email_router,gal_router
 import uvicorn
 from config.security import SECRET_KEY, RESEND_API_KEY
 
@@ -18,6 +18,7 @@ app.add_middleware(
 
 app.include_router(user_router)
 app.include_router(email_router)
+app.include_router(gal_router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app",reload=True,reload_excludes=["logs/*", "*.log", "__pycache__/*"])

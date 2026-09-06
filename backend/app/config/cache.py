@@ -16,13 +16,22 @@ redis_client = redis.Redis(
     health_check_interval=30        # 健康检查间隔
 )
 
-async def get_search_version():
-    v = await redis_client.get("search_version")
+# 业务域版本计数 key（Redis）。按域隔离版本计数：某个域的增删改只会使该域的
+# 缓存 key 失效，避免连带清空其他域的缓存。全局 search_version 保留以向后兼容默认调用。
+SEARCH_VERSION_KEY = "search_version"
+GAL_VERSION_KEY = "gal_version"
+LINK_VERSION_KEY = "link_version"
+COMMENT_VERSION_KEY = "comment_version"
+
+
+async def get_search_version(name: str = SEARCH_VERSION_KEY):
+    v = await redis_client.get(name)
     return int(v or 0)
 
 
-async def update_version():
-    await redis_client.incr("search_version")
+async def update_version(name: str = SEARCH_VERSION_KEY):
+    """指定域的版本号 +1（默认全局 search_version）。"""
+    await redis_client.incr(name)
 
 
 def get_cache_key(prefix: str, *args, version: int = None, **kwargs) -> str:

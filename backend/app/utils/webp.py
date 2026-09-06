@@ -97,8 +97,10 @@ def convert_images_to_webp(images: list[str], quality: int = 75, size: tuple = (
 def _upload_webp(webp_b64: str, folder: str) -> Optional[dict]:
     """上传一张已是 webp base64 的图片，成功返回 dict，失败返回 None。"""
     try:
+        # cloudinary SDK（当前 1.45.0）签名是 upload(file, **options)，
+        # file 是必填位置参数；直接传 Data URI（Base64），不能写成 image= 关键字。
         result = cloudinary.uploader.upload(
-            image=f"data:image/webp;base64,{webp_b64}",
+            f"data:image/webp;base64,{webp_b64}",
             folder=folder,
         )
         return {

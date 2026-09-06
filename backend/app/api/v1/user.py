@@ -13,7 +13,7 @@ from jose import jwt, JWTError
 from config.security import SECRET_KEY, ALGORITHM
 from utils.email import verify_email_code
 from utils.verify_user import verify_login
-from config.cache import update_version
+from config.cache import update_version, GAL_VERSION_KEY, LINK_VERSION_KEY, COMMENT_VERSION_KEY
 from utils.webp import upload_image_to_cloudinary
 
 # auto_error=False：缺 token 时走 verify_login 统一返回 401，与无效 token 语义一致
@@ -137,7 +137,10 @@ async def update(
         await db.rollback()
         raise HTTPException(status_code=400, detail="用户名或邮箱已存在")
     await db.refresh(user)
-    await update_version()
+    # 用户资料（用户名/头像）嵌入 galgame、link 与 comment 缓存：三个域的版本号都要 +1
+    await update_version(GAL_VERSION_KEY)
+    await update_version(LINK_VERSION_KEY)
+    await update_version(COMMENT_VERSION_KEY)
 
     return {
         "msg": "用户信息更新成功",
@@ -172,7 +175,10 @@ async def delete(
             status_code=400,
             detail="该用户存在关联作品，无法删除"
         )
-    await update_version()
+    # 用户资料（用户名/头像）嵌入 galgame、link 与 comment 缓存：三个域的版本号都要 +1
+    await update_version(GAL_VERSION_KEY)
+    await update_version(LINK_VERSION_KEY)
+    await update_version(COMMENT_VERSION_KEY)
 
     return {
         "msg": "用户已删除",
@@ -197,7 +203,7 @@ async def index(
         select(User)
         .where(User.id == id)
     )
-    user = result.one_or_none()
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404,detail="用户不存在")
 

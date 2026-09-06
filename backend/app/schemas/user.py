@@ -21,3 +21,8 @@ class AccountUpdate(BaseModel):
     email: Optional[EmailStr] = None
     avatar: Optional[str] = None
     bio: Optional[str] = None
+
+class UserInfo(BaseModel):
+    username: str
+    # 头像可空：无头像的用户不能导致 Pydantic 校验 500
+    avatar: Optional[str] = None

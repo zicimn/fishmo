@@ -1,15 +1,18 @@
 from pydantic import BaseModel, model_validator
 from typing import List, Optional
-from model.enums import PlatformEnum
+from model.enums import PlatformEnum, CategoryEnum
 
 
 class GalItem(BaseModel):
+    id: int
     name: str
     cover: str
     views: int
     author: str
     # 作者头像可空：无头像的作者不能导致 Pydantic 校验 500
     avatar: Optional[str] = None
+    # 作者 id：支持按用户过滤列表后，前端直接用于作者校验/管理入口判断
+    author_id: Optional[int] = None
 
 
 class GalList(BaseModel):
@@ -25,7 +28,7 @@ class AddGal(BaseModel):
 
     content: Optional[str] = None
     company: Optional[List[str]] = None
-    category: Optional[str] = None
+    category: Optional[CategoryEnum] = None
     cover: str
     images: Optional[List[str]] = None
     tag: Optional[List[str]] = None
@@ -45,14 +48,14 @@ class AddGal(BaseModel):
 
 class EditGal(BaseModel):
 
-    cn_name: Optional[str]
-    jp_name: Optional[str]
-    en_name: Optional[str]
+    cn_name: Optional[str] = None
+    jp_name: Optional[str] = None
+    en_name: Optional[str] = None
 
-    content: Optional[str]
-    company: Optional[List[str]]
-    category: Optional[str]
-    cover: Optional[str]
-    images: Optional[List[str]]
-    tag: Optional[List[str]]
-    platfrom: Optional[List[PlatformEnum]]
+    content: Optional[str] = None
+    company: Optional[List[str]] = None
+    category: Optional[CategoryEnum] = None
+    cover: Optional[str] = None
+    images: Optional[List[str]] = None
+    tag: Optional[List[str]] = None
+    platfrom: Optional[List[PlatformEnum]] = None

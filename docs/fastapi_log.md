@@ -1,7 +1,7 @@
 # fishmo 修改与报错记录（fastapi_log.md）
 
 > 作用：记录后端开发过程中的**代码修改**与**报错/排查**过程，便于追溯。
-> 记录区间：2026-08-06 ~ 2026-08-12
+> 记录区间：2026-08-06 ~ 2026-08-16
 > 说明：文档如实记录，包含已修复、待处理、待确认三类条目。
 
 ## 目录
@@ -121,6 +121,50 @@
 - **背景**：`PlatformEnum` 原定义在 `schemas/galgame.py`，model 层反向 import schemas 层，依赖方向反了。
 - **修复**：枚举下沉为独立领域模块，model 与 schemas 共同引用，单一来源。
 
+### 1.17 新增 link（链接）业务模块
+
+- **文件**：`model/link.py`、`schemas/link.py`、`api/v1/link.py`（新建）；`api/v1/__init__.py`、`main.py`（注册 `link_router`）。
+- **内容**：
+  - 新增 `link` 表：`url` / `content` / `code` / `author_id` / `game_id` / `category` / `size` / `status`；`author_id`、`game_id` 外键均 `ondelete=RESTRICT`。
+  - 新增 4 个端点（前缀 `/api/v1/link`）：`GET /{game_id}`（列表，`response_model=LinkList`）、`POST /add`、`PUT /review`、`DELETE /delete`。
+  - 列表缓存 key `links:v{n}:game_id=X:page=Y:size=Z` 带 `link_version` 版本号；增删改成功后 `delete_cache_pattern("links:*")` + `update_version(LINK_VERSION_KEY)`。
+  - 业务规则：`add` 服务端强制 `status=True`（新增即公开，后续可由 control 路由管理）；`review`/`delete` 校验 `author_id == 当前用户`（非作者 403）。
+- **关系**：`author` / `galgame` 多对一 `lazy="selectin"`；`Galgame.links` / `User.links` 集合侧 `lazy="raise"`。
+
+### 1.18 新增 comment（评论）业务模块
+
+- **文件**：`model/comment.py`、`schemas/comment.py`、`api/v1/comment.py`（新建）；`model/enums.py`（新增 `ReceiveEnum`）；`model/user.py`（`Comments` → `comments` 关系）；`api/v1/__init__.py`、`main.py`（注册 `comment_router`）。
+- **内容**：
+  - 新增 `comment` 表：`content` / `author_id` / `receive_id` / `receive_type`。`receive_id` 为裸 Integer 多态设计：`receive_type=galgame` 时存游戏 id，兼容未来 article 类型；`receive_type` 用 `Mapped[int]` 匹配 Integer 列（值 `int(ReceiveEnum.galgame)=1`）。
+  - 新增 4 个端点（前缀 `/api/v1/comment`）：`GET /{game_id}`（列表，`response_model=CommentList`）、`POST /add`、`PUT /edit`、`DELETE /delete`。
+  - 列表缓存 key `comments:v{n}:game_id=X:page=Y:size=Z` 带 `comment_version` 版本号；`add` 后清理 `comments:*game_id={game_id}`，`edit`/`delete` 清理 `comments:*`，均 bump `COMMENT_VERSION_KEY`。
+  - 业务规则：列表按 `receive_id == game_id` 且 `receive_type == galgame` 过滤（无笛卡尔积）；`add` 校验游戏存在（404）；`edit`/`delete` 校验 `author_id == 当前用户`（edit 非本人 404、delete 非本人 403）；delete 捕获 `IntegrityError` 转 400。
+- **修复**：`model/user.py` 集合侧关系由 `Comments`（大写）改为 `comments`（PEP8 命名 + 与 `Comment.author` 的 `back_populates` 大小写匹配）。
+- **关系**：`Comment.author` 多对一 `lazy="selectin"`；`User.comments` 集合侧 `lazy="raise"`。
+
+### 1.19 缓存版本计数按业务域拆分
+
+- **文件**：`config/cache.py`。
+- **修改**：`get_search_version()` / `update_version()` 增加 `name` 参数（默认全局 `SEARCH_VERSION_KEY`），新增 `GAL_VERSION_KEY` / `LINK_VERSION_KEY` / `COMMENT_VERSION_KEY`。某业务域增删改只自增该域版本号，只失效该域缓存，不再连带清空其他域。
+- **同步修改**：galgame 的 index/visit/add/edit/delete、link、comment 各路由改为 `update_version(域KEY)` / `get_search_version(域KEY)`。
+
+### 1.20 galgame delete 补 IntegrityError 兜底
+
+- **文件**：`api/v1/galgame.py`。
+- **背景**：游戏下存在关联链接（`link.game_id` 外键 `ondelete=RESTRICT`）时，`db.delete` + commit 触发 `IntegrityError`，此前未捕获 → 500。
+- **修复**：捕获 `IntegrityError` → rollback → `400 该游戏存在关联链接，无法删除`；删除成功后追加清理 `links:*game_id={id}` 缓存。
+
+### 1.21 user update/delete 追加多域版本号自增
+
+- **文件**：`api/v1/user.py`。
+- **背景**：用户名/头像嵌入 galgame、link、comment 三个域的列表/详情缓存，资料变更需让三个域的缓存全部失效。
+- **修复**：update / delete 成功后同时 `update_version(GAL_VERSION_KEY)` / `update_version(LINK_VERSION_KEY)` / `update_version(COMMENT_VERSION_KEY)`。
+
+### 1.22 link 模型与 schema 微调
+
+- **文件**：`model/link.py`、`schemas/link.py`。
+- **修改**：`Link.galgame` 关系 `lazy="select"` → `"selectin"`（多对一统一 selectin，避免访问 author/galgame 时的隐式同步加载）；`AddLink.url` 补 `min_length=1`（避免空串链接入库）。
+
 ---
 
 ## 2. 报错/缺陷排查记录
@@ -198,7 +242,12 @@
 - **位置**：`api/v1/galgame.py` `index`（`select(... User.name, User.avatar)`）。
 - **报错**：`AttributeError: type object 'User' has no attribute 'name'`，列表接口 `GET /api/v1/galgame/` 直接 500。
 - **根因**：模型字段为 `username`（`model/user.py`），查询误写 `User.name`。import 时不会报错（运行时才求值），故此前 `import main` 验证通过未暴露。
-- **状态**：⚠️ **未修复**，见 [第 3 节 #9](#39-新增galgame-列表接口-user-name-引用错误)。
+- **状态**：✅ 已确认修复，见 [2.10](#210-确认-user-name-引用错误已修复)。
+
+### 2.10 确认 `User.name` 引用错误已修复
+
+- **状态**：✅ **已修复**。当前 `api/v1/galgame.py` `index` 查询使用 `User.username`（非 `User.name`），`GET /api/v1/galgame/` 正常返回列表。
+- **说明**：此前本文档将其标记为「未修复」（[2.9](#29-galgame-列表接口-user-name-引用错误)），经核对当前工作区代码，`index` 早已使用 `User.username`，属文档滞后。已将 `router.md` 第 5 节与本表状态同步修正。
 
 ---
 
@@ -216,7 +265,7 @@
 | 6 | `login/register` 密码哈希未包线程池 | `user.py` login/register | argon2 慢哈希阻塞事件循环 |
 | 7 | `register` 无 IntegrityError 兜底 | `user.py` register | 并发注册撞唯一索引 → 500 |
 | 8 | `Account.password` 仅 6 位 | `schemas/user.py` | 弱口令 |
-| 9 | 【新增·Critical】galgame 列表接口 `User.name` 引用错误 | `galgame.py` index | 字段不存在 → `GET /api/v1/galgame/` 返回 500（详见 [2.9](#29-galgame-列表接口-user-name-引用错误)） |
+| 9 | ~~galgame 列表接口 `User.name` 引用错误~~（已修复） | `galgame.py` index | 字段不存在 → `GET /api/v1/galgame/` 返回 500；已确认当前代码使用 `User.username`，见 [2.10](#210-确认-user-name-引用错误已修复) |
 
 > 补充：第 3 项部分缓解——`delete` 已捕获关联作品 `IntegrityError` 返回 400，但仍是物理删除，未利用 `status` 做软删除。
 

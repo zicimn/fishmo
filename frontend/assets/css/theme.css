@@ -1,0 +1,358 @@
+/* ============================================================
+   fishmo · 《fishmo 视觉定位》设计系统
+   Dark 深色游戏门户（默认深色）+ 柔和紫蓝主色 + 克制阴影
+   在 element-plus/dist/index.css 与 element-plus/theme-chalk/dark/css-vars.css
+   之后引入（见 nuxt.config.ts 的 css 数组），通过覆盖 --el-* 变量落地：
+   - 深色（默认）：深黑灰底 #0B0B0F / #111116 / #18181F
+   - 浅色（可切换）：近白实底，仅作次级主题
+   - 品牌主色：柔和紫蓝 #7C7BF2（点缀色，不做大面积渐变）
+   - 圆角：8–12px（基础 10px、卡片 12px、小元素 8px）
+   - 过渡：cubic-bezier(0.16, 1, 0.3, 1)
+   ============================================================ */
+
+/* ============================================================
+   语义化设计令牌（组件与页面统一引用，避免散落魔数）
+   ============================================================ */
+:root {
+  color-scheme: light;
+
+  /* 品牌 Accent：柔和紫蓝 */
+  --fish-accent: #7c7bf2;
+  --fish-accent-strong: #6a69e6;      /* hover/按下 */
+  --fish-accent-soft: rgba(124, 123, 242, 0.14);
+  --fish-accent-border: rgba(124, 123, 242, 0.35);
+
+  /* 背景层级（浅色次级主题） */
+  --fish-bg: #f6f6f8;
+  --fish-bg-2: #ffffff;
+  --fish-card: #ffffff;
+  --fish-border: rgba(24, 24, 27, 0.08);
+  --fish-border-strong: rgba(24, 24, 27, 0.14);
+
+  /* 文本（Zinc 色阶） */
+  --fish-text-1: #18181b;
+  --fish-text-2: #52525b;
+  --fish-text-3: #71717a;
+
+  --fish-radius: 12px;
+  --fish-radius-sm: 8px;
+  --fish-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -18px rgba(0, 0, 0, 0.1);
+  --fish-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -20px rgba(0, 0, 0, 0.14);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --fish-accent: #8f8ef5;
+  --fish-accent-strong: #a6a5f7;
+  --fish-accent-soft: rgba(143, 142, 245, 0.14);
+  --fish-accent-border: rgba(143, 142, 245, 0.35);
+
+  --fish-bg: #0b0b0f;
+  --fish-bg-2: #111116;
+  --fish-card: #18181f;
+  --fish-border: rgba(255, 255, 255, 0.08);
+  --fish-border-strong: rgba(255, 255, 255, 0.14);
+
+  --fish-text-1: rgba(255, 255, 255, 0.92);
+  --fish-text-2: rgba(255, 255, 255, 0.72);
+  --fish-text-3: rgba(255, 255, 255, 0.55);
+
+  --fish-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px -18px rgba(0, 0, 0, 0.5);
+  --fish-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.6), 0 16px 32px -20px rgba(0, 0, 0, 0.55);
+}
+
+/* ============================================================
+   Element Plus 变量覆盖（浅色）
+   ============================================================ */
+:root {
+  /* Brand accent：柔和紫蓝 */
+  --el-color-primary: #7c7bf2;
+  --el-color-primary-dark-2: #6a69e6;
+  --el-color-primary-light-3: #9a99f5;
+  --el-color-primary-light-5: #b5b5f8;
+  --el-color-primary-light-7: #d0d0fa;
+  --el-color-primary-light-8: #ddddfc;
+  --el-color-primary-light-9: #efeffe;
+
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #e11d48;
+  --el-color-error: #e11d48;
+
+  /* Backgrounds：近白实底 */
+  --el-bg-color-page: #f6f6f8;
+  --el-bg-color: #ffffff;
+  --el-bg-color-overlay: #ffffff;
+
+  /* Text：Zinc */
+  --el-text-color-primary: #18181b;
+  --el-text-color-regular: #52525b;
+  --el-text-color-secondary: #71717a;
+  --el-text-color-placeholder: #a1a1aa;
+  --el-text-color-disabled: #c8c8cd;
+
+  /* Borders */
+  --el-border-color-darker: rgba(24, 24, 27, 0.16);
+  --el-border-color-dark: rgba(24, 24, 27, 0.12);
+  --el-border-color: rgba(24, 24, 27, 0.1);
+  --el-border-color-light: rgba(24, 24, 27, 0.08);
+  --el-border-color-lighter: rgba(24, 24, 27, 0.06);
+  --el-border-color-extra-light: rgba(24, 24, 27, 0.04);
+
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color: rgba(24, 24, 27, 0.04);
+  --el-fill-color-light: rgba(24, 24, 27, 0.06);
+  --el-fill-color-lighter: rgba(24, 24, 27, 0.08);
+  --el-fill-color-extra-light: rgba(24, 24, 27, 0.03);
+  --el-fill-color-dark: rgba(24, 24, 27, 0.1);
+  --el-fill-color-darker: rgba(24, 24, 27, 0.14);
+
+  --el-input-focus-border-color: #7c7bf2;
+  --el-input-focus-box-shadow: 0 0 0 1px #7c7bf2 inset, 0 0 0 3px rgba(124, 123, 242, 0.12);
+
+  /* Radius / Shadow：8–12px */
+  --el-border-radius-base: 10px;
+  --el-card-border-radius: 12px;
+  --el-box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
+  --el-box-shadow-light: 0 12px 28px -12px rgba(0, 0, 0, 0.1);
+  --el-box-shadow-lighter: 0 8px 20px -12px rgba(0, 0, 0, 0.08);
+
+  /* Font */
+  --el-font-family: 'Inter', 'Noto Sans SC', 'Noto Sans JP', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+}
+
+/* ============================================================
+   Element Plus 变量覆盖（深色，主主题）
+   ============================================================ */
+html.dark {
+  --el-color-primary: #8f8ef5;
+  --el-color-primary-dark-2: #7c7bf2;
+  --el-color-primary-light-3: #9a99f5;
+  --el-color-primary-light-5: #b5b5f8;
+  --el-color-primary-light-7: #d0d0fa;
+  --el-color-primary-light-8: #ddddfc;
+  --el-color-primary-light-9: #efeffe;
+
+  --el-bg-color-page: #0b0b0f;
+  --el-bg-color: #111116;
+  --el-bg-color-overlay: #18181f;
+
+  --el-text-color-primary: rgba(255, 255, 255, 0.92);
+  --el-text-color-regular: rgba(255, 255, 255, 0.72);
+  --el-text-color-secondary: rgba(255, 255, 255, 0.55);
+  --el-text-color-placeholder: rgba(255, 255, 255, 0.35);
+  --el-text-color-disabled: rgba(255, 255, 255, 0.25);
+
+  --el-border-color-darker: rgba(255, 255, 255, 0.18);
+  --el-border-color-dark: rgba(255, 255, 255, 0.14);
+  --el-border-color: rgba(255, 255, 255, 0.1);
+  --el-border-color-light: rgba(255, 255, 255, 0.08);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.06);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.04);
+
+  --el-fill-color-blank: #111116;
+  --el-fill-color: rgba(255, 255, 255, 0.08);
+  --el-fill-color-light: rgba(255, 255, 255, 0.1);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.12);
+  --el-fill-color-extra-light: rgba(255, 255, 255, 0.05);
+  --el-fill-color-dark: rgba(255, 255, 255, 0.16);
+  --el-fill-color-darker: rgba(255, 255, 255, 0.2);
+
+  --el-input-focus-border-color: #8f8ef5;
+  --el-input-focus-box-shadow: 0 0 0 1px #8f8ef5 inset, 0 0 0 3px rgba(143, 142, 245, 0.22);
+
+  --el-box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+  --el-box-shadow-light: 0 12px 28px -12px rgba(0, 0, 0, 0.45);
+  --el-box-shadow-lighter: 0 8px 20px -12px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================================
+   页面基础：深黑灰底（默认深色，暗色主主题）
+   ============================================================ */
+html {
+  background-color: #0b0b0f;
+}
+
+body {
+  background: #0b0b0f;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--el-font-family);
+  line-height: 1.65;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html:not(.dark) body {
+  background: #f6f6f8;
+  color: #18181b;
+}
+
+/* Element 容器透明，露出 body 背景 */
+.el-container,
+.el-header,
+.el-main,
+.el-footer {
+  background: transparent !important;
+}
+
+/* ============================================================
+   Element Plus 卡片统一：12px 圆角 + 克制阴影
+   ============================================================ */
+.el-card {
+  --el-card-bg-color: #18181f;
+  --el-card-border-color: rgba(255, 255, 255, 0.08);
+  --el-card-border-radius: 12px;
+  --el-card-padding: 20px;
+  background: #18181f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px -18px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.el-card.is-never-shadow {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 8px 24px -18px rgba(0, 0, 0, 0.5);
+}
+
+html:not(.dark) .el-card {
+  --el-card-bg-color: #ffffff;
+  --el-card-border-color: rgba(24, 24, 27, 0.08);
+  background: #ffffff;
+  border-color: rgba(24, 24, 27, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -18px rgba(0, 0, 0, 0.08);
+}
+
+html:not(.dark) .el-card.is-never-shadow {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -18px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================================
+   Element Plus 细节定制
+   ============================================================ */
+/* 主按钮：紫蓝 */
+.el-button--primary {
+  --el-button-hover-bg-color: #8f8ef5;
+  --el-button-hover-border-color: #8f8ef5;
+  --el-button-active-bg-color: #6a69e6;
+  --el-button-active-border-color: #6a69e6;
+}
+
+html:not(.dark) .el-button--primary {
+  --el-button-hover-bg-color: #8f8ef5;
+  --el-button-hover-border-color: #8f8ef5;
+  --el-button-active-bg-color: #6a69e6;
+  --el-button-active-border-color: #6a69e6;
+}
+
+/* 分割线文字 */
+.el-divider__text {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 头像 */
+.el-avatar {
+  --el-avatar-bg-color: rgba(143, 142, 245, 0.16);
+  --el-avatar-text-color: #b5b5f8;
+}
+
+html:not(.dark) .el-avatar {
+  --el-avatar-bg-color: rgba(124, 123, 242, 0.12);
+  --el-avatar-text-color: #6a69e6;
+}
+
+/* 下拉/弹层：实色 */
+.el-popper.is-light {
+  background: #18181f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+html:not(.dark) .el-popper.is-light {
+  background: #ffffff;
+  border-color: rgba(24, 24, 27, 0.08);
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.12);
+}
+
+/* 分页激活页 */
+.el-pagination.is-background .el-pager li.is-active {
+  background-color: var(--el-color-primary);
+}
+
+/* ============================================================
+   滚动条 / 选区
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(143, 142, 245, 0.35);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(143, 142, 245, 0.55);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: rgba(124, 123, 242, 0.35);
+}
+
+::selection {
+  background: rgba(143, 142, 245, 0.28);
+}
+
+html:not(.dark) ::selection {
+  background: rgba(124, 123, 242, 0.22);
+}
+
+/* ============================================================
+   页面切换：仅淡入淡出 200ms（克制，无位移）
+   ============================================================ */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
+
+/* ============================================================
+   动效过渡曲线
+   ============================================================ */
+html,
+body,
+#__nuxt,
+.el-card,
+.el-button,
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-dialog,
+.el-popper {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

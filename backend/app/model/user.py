@@ -9,6 +9,8 @@ from config.db import Base
 
 if TYPE_CHECKING:
     from .galgame import Galgame
+    from .link import Link
+    from .comment import Comment
 
 class User(Base):
     __tablename__ = "user"
@@ -31,6 +33,18 @@ class User(Base):
     # 如需加载必须显式 selectinload()，避免登录/注册/查询用户时误触全表扫描。
     galgames: Mapped[List["Galgame"]] = relationship(
         "Galgame",
+        back_populates="author",
+        lazy="raise"
+    )
+
+    links: Mapped[List["Link"]] = relationship(
+        "Link",
+        back_populates="author",
+        lazy="raise"
+    )
+
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
         back_populates="author",
         lazy="raise"
     )

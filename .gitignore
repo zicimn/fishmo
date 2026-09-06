@@ -3,3 +3,7 @@
 __pycache__/
 *.pyc
 test/
+docs/
+frontend/.nuxt
+frontend/.output
+frontend/node_modules

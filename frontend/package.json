@@ -1,0 +1,24 @@
+{
+  "name": "my-nuxt3-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "nuxt": "^3.15.0",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.10"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@pinia/nuxt": "^1.0.2",
+    "element-plus": "^2.14.4",
+    "pinia": "^4.0.3"
+  }
+}

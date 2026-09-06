@@ -8,6 +8,7 @@ from datetime import datetime
 
 if TYPE_CHECKING:
     from .user import User
+    from .link import Link
 
 class Galgame(Base):
     __tablename__ = "galgame"
@@ -21,7 +22,7 @@ class Galgame(Base):
 
     content:Mapped[Optional[str]] = mapped_column(Text,comment="游戏简介",default=None)
     company:Mapped[Optional[List[str]]] = mapped_column(JSON,default=None)
-    category:Mapped[str] = mapped_column(String(50),default="other")
+    category:Mapped[str] = mapped_column(String(50),default="其他")
     cover:Mapped[str] = mapped_column(String(255),comment="封面")
     images:Mapped[Optional[List[str]]] = mapped_column(JSON,default=None)
     tag:Mapped[Optional[List[str]]] = mapped_column(JSON,default=None)
@@ -34,7 +35,20 @@ class Galgame(Base):
 
     author_id: Mapped[int] = mapped_column(Integer,ForeignKey("user.id",ondelete="RESTRICT",comment="发布者id"))
 
-    author:Mapped["User"] = relationship("User",back_populates="galgames",lazy="selectin")
+    author:Mapped["User"] = relationship(
+        "User",
+        back_populates="galgames",
+        lazy="selectin"
+    )
+
+    # 集合侧禁止懒加载：查询 Galgame 时不应隐式全量加载其 links，需要时显式 selectinload()
+    links: Mapped[List["Link"]] = relationship(
+        "Link",
+        back_populates="galgame",
+        lazy="raise"
+    )
+
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

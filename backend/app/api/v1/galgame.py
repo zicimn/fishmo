@@ -14,7 +14,7 @@ from model.galgame import Galgame
 from model.user import User
 from schemas.galgame import GalItem, GalList, PlatformEnum, CategoryEnum, AddGal, EditGal
 from typing import Optional
-from utils.verify_user import verify_login
+from utils.verify_user import verify_login,verify_admin
 from utils.webp import upload_image_to_cloudinary, upload_images_to_cloudinary
 from utils.counter import ViewCounter
 
@@ -97,6 +97,7 @@ async def index(
 @router.get("/{id}")
 async def visit(
     id: int,
+    creadentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
     version = await get_search_version(GAL_VERSION_KEY)
@@ -122,7 +123,9 @@ async def visit(
 
     result, username, avatar = row
 
-    if result.status == False:
+    identity = verify_admin(creadentials=creadentials)
+
+    if result.status == False and identity is False:
         raise HTTPException(status_code=403, detail="当前未被公开")
 
     views_total = (result.views or 0) + delta

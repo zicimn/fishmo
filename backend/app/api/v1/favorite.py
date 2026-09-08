@@ -12,11 +12,9 @@ from utils.verify_user import verify_login
 from schemas.galgame import GalBase, GalBaseList
 
 router = APIRouter(prefix="/api/v1/favorite", tags=["favorite"])
-# W1: 添加 auto_error=False，与项目其他路由保持一致
 security = HTTPBearer(auto_error=False)
 
 
-# C3: GET → POST（写操作不应使用 GET）
 @router.post("/add")
 async def add_favorite(
     gal_id: int,
@@ -57,7 +55,6 @@ async def add_favorite(
     return {"message": "收藏成功", "favorite_id": favorite.id}
 
 
-# C3: GET → DELETE（写操作不应使用 GET）
 @router.delete("/remove")
 async def remove_favorite(
     gal_id: int,

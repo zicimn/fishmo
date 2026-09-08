@@ -7,7 +7,7 @@ defineProps<{ item: GalItem }>()
 <template>
   <el-card class="game-card" shadow="never" :body-style="{ padding: '0' }">
     <NuxtLink :to="`/galgame/${item.id}`" class="card-link">
-      <!-- 2:3 封面：美术优先，整卡可点 -->
+      <!-- 2:3 封面：美术优先，整卡可点；封面保持纯净，浏览量移入信息区 -->
       <div class="game-cover">
         <el-image :src="item.cover" fit="cover" class="cover-img" lazy>
           <template #error>
@@ -17,19 +17,21 @@ defineProps<{ item: GalItem }>()
             </div>
           </template>
         </el-image>
-        <div class="cover-views">
-          <el-icon :size="13"><View /></el-icon>
-          {{ item.views }}
-        </div>
       </div>
 
       <div class="game-info">
         <h3 class="game-name" :title="item.name">{{ item.name }}</h3>
-        <div class="game-author">
-          <el-avatar :size="20" :src="item.avatar || undefined">
-            {{ item.author.charAt(0).toUpperCase() || 'U' }}
-          </el-avatar>
-          <span class="author-name">{{ item.author }}</span>
+        <div class="game-meta">
+          <div class="game-author">
+            <el-avatar :size="18" :src="item.avatar || undefined">
+              {{ item.author.charAt(0).toUpperCase() || 'U' }}
+            </el-avatar>
+            <span class="author-name">{{ item.author }}</span>
+          </div>
+          <span class="game-views">
+            <el-icon :size="12"><View /></el-icon>
+            {{ item.views }}
+          </span>
         </div>
       </div>
     </NuxtLink>
@@ -39,7 +41,7 @@ defineProps<{ item: GalItem }>()
 <style scoped>
 .game-card {
   height: 100%;
-  border-radius: 10px;
+  border-radius: var(--fish-radius-sm);
   overflow: hidden;
   border-color: var(--fish-border);
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
@@ -54,13 +56,14 @@ defineProps<{ item: GalItem }>()
 }
 
 .card-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   color: inherit;
   text-decoration: none;
 }
 
-/* 2:3 封面 */
+/* 2:3 封面：纯净展示，hover 微缩放 + accent 底部光晕 */
 .game-cover {
   position: relative;
   aspect-ratio: 2 / 3;
@@ -72,11 +75,30 @@ defineProps<{ item: GalItem }>()
   width: 100%;
   height: 100%;
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .game-card:hover .cover-img {
   transform: scale(1.04);
+}
+
+/* hover 时封面底部 accent 光晕：视觉反馈增强 */
+.game-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: linear-gradient(
+    to top,
+    rgba(143, 142, 245, 0.12) 0%,
+    transparent 40%
+  );
+  pointer-events: none;
+}
+
+.game-card:hover .game-cover::after {
+  opacity: 1;
 }
 
 .cover-placeholder {
@@ -86,37 +108,25 @@ defineProps<{ item: GalItem }>()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--fish-space-xs);
   color: var(--fish-text-3);
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
 }
 
-.cover-views {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(11, 11, 15, 0.72);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
-  font-weight: 500;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-
+/* 信息区：标题 + 作者/浏览量同行 */
 .game-info {
-  padding: 12px 14px 14px;
+  padding: var(--fish-space-sm) var(--fish-space-md) var(--fish-space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fish-space-sm);
+  flex: 1;
 }
 
 .game-name {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0;
+  font-size: var(--fish-text-base);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--fish-leading-snug);
   color: var(--fish-text-1);
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -129,18 +139,37 @@ defineProps<{ item: GalItem }>()
   color: var(--fish-accent);
 }
 
+/* 作者与浏览量同行：作者居左，浏览量居右 */
+.game-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fish-space-sm);
+  min-width: 0;
+}
+
 .game-author {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--fish-space-xs);
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
   color: var(--fish-text-3);
+  overflow: hidden;
 }
 
 .author-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.game-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fish-text-xs);
+  color: var(--fish-text-3);
+  flex-shrink: 0;
 }
 </style>

@@ -23,3 +23,10 @@ class CategoryEnum(str, PyEnum):
 class ReceiveEnum(int, PyEnum):
     article = 0
     galgame = 1
+
+
+class SizeUnitEnum(str, PyEnum):
+    """链接文件大小单位枚举，与 Link.size_unit 列对应"""
+    KB = "KB"
+    MB = "MB"
+    GB = "GB"

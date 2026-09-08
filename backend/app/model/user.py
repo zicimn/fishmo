@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from .galgame import Galgame
     from .link import Link
     from .comment import Comment
+    from .favorite import Favorite
 
 class User(Base):
     __tablename__ = "user"
@@ -45,6 +46,13 @@ class User(Base):
 
     comments: Mapped[List["Comment"]] = relationship(
         "Comment",
+        back_populates="author",
+        lazy="raise"
+    )
+
+    # C1: 收藏关系集合侧，lazy="raise" 禁止隐式全量加载
+    favorites: Mapped[List["Favorite"]] = relationship(
+        "Favorite",
         back_populates="author",
         lazy="raise"
     )

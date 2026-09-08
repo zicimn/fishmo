@@ -34,10 +34,42 @@
   --fish-text-2: #52525b;
   --fish-text-3: #71717a;
 
+  /* 圆角系统：8-12px 克制 */
   --fish-radius: 12px;
   --fish-radius-sm: 8px;
+  --fish-radius-xs: 6px;
+
+  /* 间距系统：8px 基准 */
+  --fish-space-xs: 4px;
+  --fish-space-sm: 8px;
+  --fish-space-md: 16px;
+  --fish-space-lg: 24px;
+  --fish-space-xl: 32px;
+  --fish-space-2xl: 48px;
+
+  /* 阴影：克制 */
   --fish-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -18px rgba(0, 0, 0, 0.1);
-  --fish-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.04), 0 16px 32px -20px rgba(0, 0, 0, 0.14);
+  --fish-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.04), 0 12px 28px -16px rgba(0, 0, 0, 0.12);
+  --fish-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.06), 0 20px 40px -20px rgba(0, 0, 0, 0.15);
+
+  /* 排版系统 */
+  --fish-text-xs: 12px;
+  --fish-text-sm: 13px;
+  --fish-text-base: 14px;
+  --fish-text-lg: 16px;
+  --fish-text-xl: 18px;
+  --fish-text-2xl: 20px;
+  --fish-text-3xl: 24px;
+  --fish-text-4xl: 30px;
+
+  --fish-leading-tight: 1.25;
+  --fish-leading-snug: 1.4;
+  --fish-leading-normal: 1.65;
+  --fish-leading-relaxed: 1.8;
+
+  --fish-tracking-tight: -0.01em;
+  --fish-tracking-normal: 0;
+  --fish-tracking-wide: 0.02em;
 }
 
 html.dark {

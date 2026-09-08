@@ -100,8 +100,8 @@ async def update(
 ):
     user_id = verify_login(credentials=credentials)
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    # db.get() 优先走 identity map，纯主键查询更高效
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -159,8 +159,8 @@ async def delete(
 ):
     user_id = verify_login(credentials=credentials)
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    # db.get() 优先走 identity map，纯主键查询更高效
+    user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
@@ -199,11 +199,8 @@ async def index(
     if not id and credentials:
         id = verify_login(credentials=credentials)
 
-    result = await db.execute(
-        select(User)
-        .where(User.id == id)
-    )
-    user = result.scalar_one_or_none()
+    # db.get() 优先走 identity map，纯主键查询更高效
+    user = await db.get(User, id)
     if not user:
         raise HTTPException(status_code=404,detail="用户不存在")
 

@@ -138,7 +138,13 @@ function handlePageChange(page: number) {
     <el-skeleton v-if="pending && !items.length" :rows="6" animated class="mb" />
 
     <ClientOnly v-else-if="!items.length">
-      <el-empty description="暂无符合条件的游戏" class="mb" />
+      <div class="empty-state">
+        <el-icon class="empty-icon" :size="48"><Compass /></el-icon>
+        <p class="empty-text">暂无符合条件的游戏</p>
+        <NuxtLink to="/publish" class="empty-action">
+          发布第一款 →
+        </NuxtLink>
+      </div>
     </ClientOnly>
 
     <div v-else class="game-grid">
@@ -161,7 +167,7 @@ function handlePageChange(page: number) {
 .games-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--fish-space-lg);
 }
 
 .mb {
@@ -171,56 +177,64 @@ function handlePageChange(page: number) {
 .page-head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--fish-space-sm);
 }
 
 .page-title {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--fish-space-sm);
   margin: 0;
-  font-size: 24px;
+  font-size: var(--fish-text-3xl);
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--fish-tracking-tight);
   color: var(--fish-text-1);
 }
 .page-title::before {
   content: '';
   width: 4px;
-  height: 18px;
+  height: 22px;
   border-radius: 3px;
   background: var(--fish-accent);
 }
 .page-count {
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
   color: var(--fish-text-3);
 }
 
+/* 筛选行：窄屏横滑而非换行混乱 */
 .filter-rows {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--fish-space-sm);
 }
 .filter-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--fish-space-sm);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.filter-row::-webkit-scrollbar {
+  height: 0;
 }
 .filter-label {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
   font-weight: 700;
   color: var(--fish-text-3);
-  margin-right: 2px;
+  margin-right: var(--fish-space-xs);
 }
 .filter-chip {
+  flex-shrink: 0;
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid var(--fish-border);
   background: var(--fish-bg-2);
   color: var(--fish-text-2);
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
   font-family: inherit;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s, background 0.2s;
@@ -239,19 +253,96 @@ function handlePageChange(page: number) {
 .game-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
+  gap: var(--fish-space-lg);
 }
 
+/* 分页器：颜色融入设计系统 */
 .pagination-wrap {
   display: flex;
   justify-content: center;
-  margin-top: 8px;
+  margin-top: var(--fish-space-sm);
+}
+
+/* 分页器定制：融入深色设计系统 */
+:deep(.el-pagination) {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: var(--fish-text-2);
+  --el-pagination-button-bg-color: var(--fish-bg-2);
+  --el-pagination-button-color: var(--fish-text-2);
+  --el-pagination-hover-color: var(--fish-accent);
+}
+
+:deep(.el-pagination .el-pager li) {
+  background: var(--fish-bg-2);
+  border: 1px solid var(--fish-border);
+  color: var(--fish-text-2);
+  border-radius: var(--fish-radius-xs);
+}
+
+:deep(.el-pagination .el-pager li.is-active) {
+  background: var(--fish-accent);
+  border-color: var(--fish-accent);
+  color: #fff;
+}
+
+:deep(.el-pagination .el-pager li:hover) {
+  color: var(--fish-accent);
+  border-color: var(--fish-accent-border);
+}
+
+:deep(.el-pagination button.btn-prev),
+:deep(.el-pagination button.btn-next) {
+  background: var(--fish-bg-2) !important;
+  border: 1px solid var(--fish-border);
+  color: var(--fish-text-2);
+  border-radius: var(--fish-radius-xs);
+}
+
+:deep(.el-pagination button:disabled) {
+  color: var(--fish-text-3) !important;
+  opacity: 0.4;
+}
+
+/* 定制空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fish-space-md);
+  padding: var(--fish-space-2xl) var(--fish-space-lg);
+}
+
+.empty-icon {
+  color: var(--fish-text-3);
+  opacity: 0.5;
+}
+
+.empty-text {
+  margin: 0;
+  font-size: var(--fish-text-lg);
+  color: var(--fish-text-3);
+}
+
+.empty-action {
+  font-size: var(--fish-text-sm);
+  font-weight: 600;
+  color: var(--fish-accent);
+  text-decoration: none;
+  padding: var(--fish-space-sm) var(--fish-space-md);
+  border-radius: var(--fish-radius-sm);
+  border: 1px solid var(--fish-accent-border);
+  background: var(--fish-accent-soft);
+  transition: opacity 0.2s;
+}
+
+.empty-action:hover {
+  opacity: 0.85;
 }
 
 @media (max-width: 560px) {
   .game-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 14px;
+    gap: var(--fish-space-md);
   }
 }
 </style>

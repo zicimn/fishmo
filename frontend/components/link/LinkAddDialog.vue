@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
-import type { AddLink } from '~/types'
+import type { AddLink, SizeUnit } from '~/types'
 import { addLink } from '~/composables/useLink'
 import { isSafeLink } from '~/utils/link'
-import { mbToBytes } from '~/utils/format'
 import { getErrDetail } from '~/utils/request'
 
 /**
@@ -14,8 +13,9 @@ const props = defineProps<{ gameId: number }>()
 const visible = defineModel<boolean>({ default: false })
 const emit = defineEmits<{ success: [] }>()
 
-// size 表单以 MB 为单位，提交时换算为字节（与 LinkManage 表单语义一致）
-const form = reactive<AddLink>({ url: '', content: '', code: '', category: '', size: undefined })
+// size 为浮点数值 + size_unit 单位选择器，直接提交无需换算
+const sizeUnitOptions: SizeUnit[] = ['KB', 'MB', 'GB']
+const form = reactive<AddLink>({ url: '', content: '', code: '', category: '', size: undefined, size_unit: 'MB' })
 const submitting = ref(false)
 
 function reset() {
@@ -24,6 +24,7 @@ function reset() {
   form.code = ''
   form.category = ''
   form.size = undefined
+  form.size_unit = 'MB'
 }
 
 async function handleSubmit() {
@@ -42,7 +43,8 @@ async function handleSubmit() {
       content: form.content || null,
       code: form.code || null,
       category: form.category || null,
-      size: mbToBytes(form.size),
+      size: form.size != null ? form.size : null,
+      size_unit: form.size != null ? (form.size_unit || 'MB') : null,
     })
     ElMessage.success('链接添加成功')
     visible.value = false
@@ -74,8 +76,13 @@ async function handleSubmit() {
         <el-form-item label="分类">
           <el-input v-model="form.category" placeholder="如 网盘 / 磁力 / BT" />
         </el-form-item>
-        <el-form-item label="大小（MB）">
-          <el-input-number v-model="form.size" :min="0" :max="100000" style="width: 100%" />
+        <el-form-item label="大小">
+          <div class="size-group">
+            <el-input-number v-model="form.size" :min="0" :max="999999" :precision="2" :step="0.1" style="flex: 1" />
+            <el-select v-model="form.size_unit" style="width: 80px; flex-shrink: 0">
+              <el-option v-for="u in sizeUnitOptions" :key="u" :label="u" :value="u" />
+            </el-select>
+          </div>
         </el-form-item>
       </div>
       <el-form-item label="备注">
@@ -97,5 +104,11 @@ async function handleSubmit() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 16px;
+}
+.size-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 </style>

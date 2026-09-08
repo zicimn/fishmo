@@ -1,9 +1,10 @@
-from sqlalchemy import Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Integer, String, Float, DateTime, ForeignKey, Boolean, Enum as SAEnum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional, TYPE_CHECKING
 from config.db import Base
 from datetime import datetime
+from .enums import SizeUnitEnum
 
 if TYPE_CHECKING:
     from .user import User
@@ -24,7 +25,11 @@ class Link(Base):
     author_id: Mapped[int] = mapped_column(Integer, ForeignKey("user.id", ondelete="RESTRICT", comment="发布者id"))
     game_id: Mapped[int] = mapped_column(Integer, ForeignKey("galgame.id", ondelete="RESTRICT", comment="游戏id"))
     category: Mapped[Optional[str]] = mapped_column(String(255), comment="链接类型")
-    size: Mapped[Optional[int]] = mapped_column(Integer, comment="大小")
+    size: Mapped[Optional[float]] = mapped_column(Float, comment="大小")
+    size_unit: Mapped[Optional[SizeUnitEnum]] = mapped_column(
+        SAEnum(SizeUnitEnum, values_callable=lambda x: [e.value for e in x]),
+        default=None, comment="大小单位"
+    )
     # 新增即公开：add 时服务端强制 status=True，默认 True 兜底
     status: Mapped[bool] = mapped_column(Boolean, default=True, comment="状态")
 

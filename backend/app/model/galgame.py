@@ -9,6 +9,7 @@ from datetime import datetime
 if TYPE_CHECKING:
     from .user import User
     from .link import Link
+    from .favorite import Favorite
 
 class Galgame(Base):
     __tablename__ = "galgame"
@@ -44,6 +45,13 @@ class Galgame(Base):
     # 集合侧禁止懒加载：查询 Galgame 时不应隐式全量加载其 links，需要时显式 selectinload()
     links: Mapped[List["Link"]] = relationship(
         "Link",
+        back_populates="galgame",
+        lazy="raise"
+    )
+
+    # C1: 收藏关系集合侧，lazy="raise" 禁止隐式全量加载
+    favorites: Mapped[List["Favorite"]] = relationship(
+        "Favorite",
         back_populates="galgame",
         lazy="raise"
     )

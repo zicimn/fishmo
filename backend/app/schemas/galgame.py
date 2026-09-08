@@ -59,3 +59,14 @@ class EditGal(BaseModel):
     images: Optional[List[str]] = None
     tag: Optional[List[str]] = None
     platfrom: Optional[List[PlatformEnum]] = None
+
+
+class GalBase(BaseModel):
+    id: int  # W2: 前端跳转需要游戏 id
+    name: str
+    cover: str
+
+
+class GalBaseList(BaseModel):
+    total: int  # W2: 列表总数
+    items: List[GalBase]

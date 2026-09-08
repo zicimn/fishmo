@@ -16,7 +16,7 @@ async def sync_job():
 def start_scheduler():
     scheduler.add_job(
         sync_job,
-        trigger=IntervalTrigger(minutes=1),  # 每 1 分钟执行一次
+        trigger=IntervalTrigger(minutes=10),  # 每 10 分钟执行一次
         id="sync_views",
         replace_existing=True,
     )

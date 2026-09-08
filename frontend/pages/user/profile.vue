@@ -11,13 +11,14 @@ definePageMeta({ middleware: 'auth' })
 const authStore = useAuthStore()
 const { fetchProfile } = useAuth()
 
-type MenuName = 'games' | 'comments' | 'links' | 'settings'
+type MenuName = 'games' | 'comments' | 'links' | 'favorites' | 'settings'
 
 // 左侧透明菜单项（图标为全局注册的 Element Plus 图标组件名）
 const menuItems: { name: MenuName; label: string; icon: string }[] = [
   { name: 'games', label: '游戏', icon: 'Trophy' },
   { name: 'comments', label: '评论', icon: 'ChatDotRound' },
   { name: 'links', label: '链接', icon: 'Link' },
+  { name: 'favorites', label: '收藏', icon: 'StarFilled' },
   { name: 'settings', label: '设置', icon: 'Setting' },
 ]
 
@@ -113,6 +114,7 @@ function handleLogout() {
           <MyGames v-if="activeTab === 'games'" />
           <MyComments v-else-if="activeTab === 'comments'" />
           <MyLinks v-else-if="activeTab === 'links'" />
+          <MyFavorites v-else-if="activeTab === 'favorites'" />
           <el-card v-else shadow="never" class="settings-card">
             <template #header>
               <span class="card-title">编辑资料</span>

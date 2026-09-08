@@ -441,7 +441,8 @@ Authorization: Bearer <access_token>
         "content": "百度网盘",
         "code": "1234",
         "category": "网盘",
-        "size": 2048,
+        "size": 2.5,
+        "size_unit": "GB",
         "status": true,
         "game_id": 5
       },
@@ -468,7 +469,8 @@ Authorization: Bearer <access_token>
 | content | str? | ❌ | 链接内容（如网盘名），≤255 字符 |
 | code | str? | ❌ | 提取码，≤255 字符 |
 | category | str? | ❌ | 链接类型，≤255 字符 |
-| size | int? | ❌ | 大小（字节） |
+| size | float? | ❌ | 大小数值（≥0，配合 size_unit 使用） |
+| size_unit | str? | ❌ | 大小单位：`KB` / `MB` / `GB`（正则校验） |
 
 - **处理流程**：
   1. `verify_login` 解析当前用户 ID；校验游戏存在（不存在 → `404 未找到该游戏`）。
@@ -492,7 +494,8 @@ Authorization: Bearer <access_token>
 | 字段 | 类型 | 必填 | 约束 |
 | --- | --- | --- | --- |
 | content / code / category | str? | ❌ | 对应字段更新，≤255 字符 |
-| size | int? | ❌ | 大小更新 |
+| size | float? | ❌ | 大小数值（≥0） |
+| size_unit | str? | ❌ | 大小单位：`KB` / `MB` / `GB` |
 
 - **处理流程**：
   1. `verify_login`；按 `Link.id == link_id` 且 `Link.author_id == user_id` 查对象，非作者 → `403 没有该链接或者您不是发布者`。
@@ -554,7 +557,8 @@ Authorization: Bearer <access_token>
         "content": "百度网盘",
         "code": "1234",
         "category": "网盘",
-        "size": 2048,
+        "size": 2.5,
+        "size_unit": "GB",
         "status": true,
         "game_id": 5
       },
@@ -741,11 +745,11 @@ Authorization: Bearer <access_token>
 
 | 模型 | 字段 | 用途 |
 | --- | --- | --- |
-| `LinkItem` | id, url, content?, code?, category?, size?, status, game_id | 列表项（含审核状态与所属游戏 id） |
+| `LinkItem` | id, url, content?, code?, category?, size?(float), size_unit?, status, game_id | 列表项（含审核状态与所属游戏 id） |
 | `LinkItems` | item: LinkItem, account: UserInfo | 列表项 + 发布者信息 |
 | `LinkList` | total, items: List[LinkItems] | 列表响应（`response_model`） |
-| `AddLink` | url(必填, 1–255), content?, code?, category?, size? | 新增（服务端强制 status=True，请求体不含 status） |
-| `EditLink` | content?, code?, category?, size? | 编辑（全可选，不含 url） |
+| `AddLink` | url(必填, 1–255), content?, code?, category?, size?(float), size_unit? | 新增（服务端强制 status=True，请求体不含 status） |
+| `EditLink` | content?, code?, category?, size?(float), size_unit? | 编辑（全可选，不含 url） |
 
 **schemas/comment.py**
 
@@ -811,7 +815,8 @@ Authorization: Bearer <access_token>
 | author_id | Integer | 外键 `user.id`，`ondelete=RESTRICT` |
 | game_id | Integer | 外键 `galgame.id`，`ondelete=RESTRICT` |
 | category | String(255)? | 链接类型 |
-| size | Integer? | 大小 |
+| size | Float? | 大小数值（配合 size_unit 使用） |
+| size_unit | Enum(KB/MB/GB)? | 大小单位 |
 | status | Boolean | 默认 True（新增即公开） |
 | created_at / updated_at | DateTime | 自动维护 |
 

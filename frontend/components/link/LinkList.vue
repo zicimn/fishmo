@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useLinkList } from '~/composables/useLink'
 import { isSafeLink } from '~/utils/link'
-import { formatBytes } from '~/utils/format'
+import { formatLinkSize } from '~/utils/format'
 
 const props = defineProps<{ gameId: number }>()
 const { data, pending, error, refresh } = useLinkList(props.gameId)
@@ -42,7 +42,7 @@ defineExpose({ refresh })
           <span v-else class="link-url unsafe">{{ entry.item.url }}</span>
           <div v-if="entry.item.category || entry.item.size" class="link-badges">
             <el-tag v-if="entry.item.category" size="small" type="info">分类：{{ entry.item.category }}</el-tag>
-            <el-tag v-if="entry.item.size" size="small" type="warning">大小：{{ formatBytes(entry.item.size) }}</el-tag>
+            <el-tag v-if="entry.item.size" size="small" type="warning">大小：{{ formatLinkSize(entry.item.size, entry.item.size_unit) }}</el-tag>
           </div>
           <p v-if="entry.item.content" class="link-content">{{ entry.item.content }}</p>
         </div>

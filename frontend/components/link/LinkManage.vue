@@ -1,20 +1,23 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { AddLink, EditLink, LinkItems } from '~/types'
+import type { AddLink, EditLink, LinkItems, SizeUnit } from '~/types'
 import { useLinkList, addLink, reviewLink, deleteLink } from '~/composables/useLink'
 import { isSafeLink } from '~/utils/link'
-import { formatBytes, bytesToMb, mbToBytes } from '~/utils/format'
+import { formatLinkSize, bytesToSizeUnit } from '~/utils/format'
 import { getErrDetail } from '~/utils/request'
 
 const props = defineProps<{ gameId: number }>()
 const { data, pending, error, refresh } = useLinkList(props.gameId)
 
-// 新增链接（size 表单以 MB 为单位，提交时换算为字节）
-const form = reactive<AddLink>({ url: '', content: '', code: '', category: '', size: undefined })
+// size 单位选项
+const sizeUnitOptions: SizeUnit[] = ['KB', 'MB', 'GB']
+
+// 新增链接：size 浮点数值 + size_unit 单位选择器，直接提交
+const form = reactive<AddLink>({ url: '', content: '', code: '', category: '', size: undefined, size_unit: 'MB' })
 const adding = ref(false)
 
 // 行内编辑：editingId 为正在编辑的链接 id（来自列表项），editForm 为回显后的编辑内容
-const editForm = reactive<EditLink>({ content: '', code: '', category: '', size: undefined })
+const editForm = reactive<EditLink>({ content: '', code: '', category: '', size: undefined, size_unit: 'MB' })
 const editingId = ref<number | null>(null)
 const managing = ref(false)
 
@@ -34,7 +37,8 @@ async function handleAdd() {
       content: form.content || null,
       code: form.code || null,
       category: form.category || null,
-      size: mbToBytes(form.size),
+      size: form.size != null ? form.size : null,
+      size_unit: form.size != null ? (form.size_unit || 'MB') : null,
     })
     ElMessage.success('链接添加成功')
     form.url = ''
@@ -42,6 +46,7 @@ async function handleAdd() {
     form.code = ''
     form.category = ''
     form.size = null
+    form.size_unit = 'MB'
     refresh()
   } catch (e: any) {
     ElMessage.error(getErrDetail(e, '添加失败'))
@@ -50,13 +55,21 @@ async function handleAdd() {
   }
 }
 
-// 回显到编辑表单：后端 size 为字节，表单以 MB 为单位，需换算
+// 回显到编辑表单：新数据直接取 size + size_unit，旧数据（无 unit）按字节自动换算
 function fillEdit(entry: LinkItems) {
   editingId.value = entry.item.id
   editForm.content = entry.item.content || ''
   editForm.code = entry.item.code || ''
   editForm.category = entry.item.category || ''
-  editForm.size = bytesToMb(entry.item.size)
+  if (entry.item.size_unit) {
+    editForm.size = entry.item.size ?? undefined
+    editForm.size_unit = entry.item.size_unit
+  } else {
+    // 旧数据：size 为字节，自动换算合适单位
+    const converted = bytesToSizeUnit(entry.item.size)
+    editForm.size = converted.size
+    editForm.size_unit = converted.size_unit
+  }
   ElMessage.info('已填入编辑表单，可在下方修改后点击「保存修改」')
 }
 
@@ -66,6 +79,7 @@ function cancelEdit() {
   editForm.code = ''
   editForm.category = ''
   editForm.size = null
+  editForm.size_unit = 'MB'
 }
 
 async function handleReview() {
@@ -79,7 +93,8 @@ async function handleReview() {
       content: editForm.content || null,
       code: editForm.code || null,
       category: editForm.category || null,
-      size: mbToBytes(editForm.size),
+      size: editForm.size != null ? editForm.size : null,
+      size_unit: editForm.size != null ? (editForm.size_unit || 'MB') : null,
     })
     ElMessage.success('链接已更新')
     cancelEdit()
@@ -147,7 +162,7 @@ async function handleDelete(entry: LinkItems) {
               分类：{{ entry.item.category }}
             </el-tag>
             <el-tag v-if="entry.item.size" size="small" type="warning">
-              大小：{{ formatBytes(entry.item.size) }}
+              大小：{{ formatLinkSize(entry.item.size, entry.item.size_unit) }}
             </el-tag>
             <span v-if="entry.item.code" class="lm-code">提取码 {{ entry.item.code }}</span>
           </div>
@@ -170,8 +185,13 @@ async function handleDelete(entry: LinkItems) {
         <el-form-item label="分类">
           <el-input v-model="form.category" placeholder="如 网盘 / 磁力 / BT" />
         </el-form-item>
-        <el-form-item label="大小（MB）">
-          <el-input-number v-model="form.size" :min="0" :max="100000" style="width: 100%" />
+        <el-form-item label="大小">
+          <div class="size-group">
+            <el-input-number v-model="form.size" :min="0" :max="999999" :precision="2" :step="0.1" style="flex: 1" />
+            <el-select v-model="form.size_unit" style="width: 80px; flex-shrink: 0">
+              <el-option v-for="u in sizeUnitOptions" :key="u" :label="u" :value="u" />
+            </el-select>
+          </div>
         </el-form-item>
       </div>
       <el-form-item label="备注">
@@ -190,8 +210,13 @@ async function handleDelete(entry: LinkItems) {
         <el-form-item label="分类">
           <el-input v-model="editForm.category" placeholder="如 网盘 / 磁力 / BT" />
         </el-form-item>
-        <el-form-item label="大小（MB）">
-          <el-input-number v-model="editForm.size" :min="0" :max="100000" style="width: 100%" />
+        <el-form-item label="大小">
+          <div class="size-group">
+            <el-input-number v-model="editForm.size" :min="0" :max="999999" :precision="2" :step="0.1" style="flex: 1" />
+            <el-select v-model="editForm.size_unit" style="width: 80px; flex-shrink: 0">
+              <el-option v-for="u in sizeUnitOptions" :key="u" :label="u" :value="u" />
+            </el-select>
+          </div>
         </el-form-item>
       </div>
       <el-form-item label="备注">
@@ -326,6 +351,12 @@ async function handleDelete(entry: LinkItems) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 16px;
+}
+.size-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 .lm-edit-actions {
   display: flex;

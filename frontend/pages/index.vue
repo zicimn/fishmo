@@ -19,6 +19,9 @@ const popular = computed<GalItem[]>(() => {
   return [...discoveryItems.value].sort((a, b) => b.views - a.views).slice(0, 6)
 })
 
+// 最新发布：按 discovery 原始顺序（后端默认 updated_at 倒序）取前 8
+const latest = computed<GalItem[]>(() => discoveryItems.value.slice(0, 8))
+
 const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0).toUpperCase())
 </script>
 
@@ -44,15 +47,17 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
       </div>
     </NuxtLink>
 
-    <!-- ===== 热门游戏：按浏览量客户端排序（后端无 sort 参数） ===== -->
+    <!-- ===== 热门游戏：横向滚动 + 序号突出前 3 ===== -->
     <template v-if="popular.length">
       <div class="section-head">
-        <h2 class="section-title">热门游戏</h2>
+        <h2 class="section-title">
+          <el-icon class="section-icon"><TrendCharts /></el-icon>
+          热门游戏
+        </h2>
         <span class="section-note">按浏览热度</span>
-        <!-- 全部游戏已移至导航页 /games，这里作为首页出口 -->
         <NuxtLink to="/games" class="section-more">查看全部游戏 →</NuxtLink>
       </div>
-      <div class="popular-row">
+      <div class="popular-scroll">
         <NuxtLink
           v-for="(g, i) in popular"
           :key="g.id"
@@ -70,6 +75,21 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
       </div>
     </template>
 
+    <!-- ===== 最新发布：按后端默认时间倒序 ===== -->
+    <template v-if="latest.length">
+      <div class="section-head">
+        <h2 class="section-title">
+          <el-icon class="section-icon"><Clock /></el-icon>
+          最新发布
+        </h2>
+        <span class="section-note">最近更新</span>
+        <NuxtLink to="/games" class="section-more">更多 →</NuxtLink>
+      </div>
+      <div class="latest-grid">
+        <GameCard v-for="item in latest" :key="item.id" :item="item" />
+      </div>
+    </template>
+
   </div>
 </template>
 
@@ -77,16 +97,16 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 .home-page {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--fish-space-xl);
 }
 
 /* ========================================================
-   精选 Hero
+   精选 Hero：响应式高度 + 径向渐变遮罩（不遮挡封面主体）
    ======================================================== */
 .hero-card {
   position: relative;
   display: block;
-  height: 300px;
+  height: clamp(220px, 30vw, 400px);
   border-radius: var(--fish-radius);
   overflow: hidden;
   border: 1px solid var(--fish-border);
@@ -102,15 +122,16 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   z-index: -2;
 }
 
+/* 径向渐变从左下到右上：文字在左下可读，封面右侧/上方保持清晰 */
 .hero-overlay {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(
-    90deg,
-    rgba(11, 11, 15, 0.92) 0%,
-    rgba(11, 11, 15, 0.55) 50%,
-    rgba(11, 11, 15, 0.15) 100%
+  background: radial-gradient(
+    ellipse 80% 70% at 20% 85%,
+    rgba(11, 11, 15, 0.94) 0%,
+    rgba(11, 11, 15, 0.6) 40%,
+    rgba(11, 11, 15, 0.1) 100%
   );
 }
 
@@ -118,8 +139,8 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   position: absolute;
   left: 0;
   bottom: 0;
-  max-width: 640px;
-  padding: 40px 32px 28px;
+  max-width: 60%;
+  padding: var(--fish-space-2xl) var(--fish-space-xl) var(--fish-space-lg);
 }
 
 .hero-badge {
@@ -129,18 +150,18 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   background: var(--fish-accent-soft);
   border: 1px solid var(--fish-accent-border);
   color: var(--fish-accent);
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
-  margin-bottom: 14px;
+  margin-bottom: var(--fish-space-md);
 }
 
 .hero-title {
-  margin: 0 0 12px;
-  font-size: 30px;
+  margin: 0 0 var(--fish-space-sm);
+  font-size: var(--fish-text-4xl);
   font-weight: 800;
-  line-height: 1.25;
-  color: #f5f5f5;
+  line-height: var(--fish-leading-tight);
+  color: var(--fish-text-1);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -150,15 +171,15 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 .hero-meta {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: var(--fish-space-md);
   color: rgba(255, 255, 255, 0.72);
-  font-size: 14px;
+  font-size: var(--fish-text-sm);
 }
 
 .hero-author {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--fish-space-sm);
 }
 
 .hero-stat {
@@ -168,42 +189,41 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 }
 
 /* ========================================================
-   区块标题
+   区块标题：首页使用 icon+文字（与详情页竖条装饰差异化）
    ======================================================== */
 .section-head {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: var(--fish-space-sm);
 }
 
 .section-title {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--fish-space-sm);
   margin: 0;
-  font-size: 20px;
+  font-size: var(--fish-text-xl);
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--fish-tracking-tight);
   color: var(--fish-text-1);
 }
 
-.section-title::before {
-  content: '';
-  width: 4px;
-  height: 18px;
-  border-radius: 3px;
-  background: var(--fish-accent);
+/* 首页 icon 装饰：accent 色，替代竖条 */
+.section-icon {
+  color: var(--fish-accent);
+  font-size: 20px;
   flex-shrink: 0;
 }
 
 .section-note {
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
   color: var(--fish-text-3);
+  margin-left: var(--fish-space-xs);
 }
 
 .section-more {
   margin-left: auto;
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
   font-weight: 600;
   color: var(--fish-accent);
   text-decoration: none;
@@ -215,41 +235,57 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 }
 
 /* ========================================================
-   热门条
+   热门条：横向滚动 + snap，减少网格拥挤感
    ======================================================== */
-.popular-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 14px;
+.popular-scroll {
+  display: flex;
+  gap: var(--fish-space-md);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--fish-space-xs);
+}
+
+/* 隐藏滚动条但保留功能 */
+.popular-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.popular-scroll::-webkit-scrollbar-thumb {
+  background: var(--fish-border-strong);
+  border-radius: 2px;
 }
 
 .popular-item {
   position: relative;
   display: block;
-  padding: 8px;
-  border-radius: 10px;
+  flex-shrink: 0;
+  width: 160px;
+  padding: var(--fish-space-sm);
+  border-radius: var(--fish-radius-sm);
   background: var(--fish-bg-2);
   border: 1px solid var(--fish-border);
   text-decoration: none;
-  transition: border-color 0.2s, transform 0.2s;
+  scroll-snap-align: start;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .popular-item:hover {
   border-color: var(--fish-accent-border);
   transform: translateY(-2px);
+  box-shadow: var(--fish-shadow-hover);
 }
 
 .popular-cover {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 6px;
+  border-radius: var(--fish-radius-xs);
   display: block;
   background: var(--fish-bg);
 }
 
 .popular-name {
-  margin-top: 8px;
-  font-size: 13px;
+  margin-top: var(--fish-space-sm);
+  font-size: var(--fish-text-sm);
   font-weight: 600;
   color: var(--fish-text-1);
   overflow: hidden;
@@ -260,9 +296,9 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 .popular-views {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  font-size: 12px;
+  gap: var(--fish-space-xs);
+  margin-top: var(--fish-space-xs);
+  font-size: var(--fish-text-xs);
   color: var(--fish-text-3);
 }
 
@@ -274,10 +310,10 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--fish-radius-xs);
   background: rgba(11, 11, 15, 0.7);
   color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
   font-weight: 700;
 }
 
@@ -287,29 +323,53 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 }
 
 /* ========================================================
+   最新发布网格：复用 GameCard，4 列桌面 → 2 列移动
+   ======================================================== */
+.latest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--fish-space-lg);
+}
+
+/* ========================================================
    响应式
    ======================================================== */
 @media (max-width: 1024px) {
-  .hero-card {
-    height: 260px;
+  .hero-info {
+    max-width: 70%;
+    padding: var(--fish-space-lg) var(--fish-space-lg) var(--fish-space-md);
+  }
+
+  .hero-title {
+    font-size: var(--fish-text-3xl);
   }
 }
 
 @media (max-width: 560px) {
-  .hero-card {
-    height: 220px;
+  .home-page {
+    gap: var(--fish-space-lg);
   }
 
   .hero-info {
-    padding: 24px 20px 20px;
+    max-width: 85%;
+    padding: var(--fish-space-lg) var(--fish-space-md) var(--fish-space-md);
   }
 
   .hero-title {
-    font-size: 22px;
+    font-size: var(--fish-text-2xl);
   }
 
   .hero-meta {
-    gap: 12px;
+    gap: var(--fish-space-sm);
+  }
+
+  .popular-item {
+    width: 130px;
+  }
+
+  .latest-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--fish-space-md);
   }
 }
 </style>

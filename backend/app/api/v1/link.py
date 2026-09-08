@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from model.galgame import Galgame
 from model.user import User
 from model.link import Link
+from model.enums import SizeUnitEnum
 from typing import Optional
 from utils.verify_user import verify_login
 from schemas.link import LinkList, LinkItems, LinkItem, AddLink, EditLink
@@ -67,6 +68,7 @@ async def get_list_by_user(
             code=result.code,
             category=result.category,
             size=result.size,
+            size_unit=result.size_unit.value if result.size_unit else None,
             status=result.status,
             game_id=result.game_id,
         )
@@ -107,9 +109,9 @@ async def get_list(
         return cache_data
 
     # 先校验游戏存在，避免对不存在的游戏返回空列表
-    existing_query = await db.execute(select(Galgame.id).where(Galgame.id == game_id))
-    existing_result = existing_query.scalar_one_or_none()
-    if not existing_result:
+    # db.get() 优先走 identity map，纯主键查询更高效
+    existing = await db.get(Galgame, game_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="未找到该游戏")
 
     skip = (page - 1) * size
@@ -142,6 +144,7 @@ async def get_list(
             code=result.code,
             category=result.category,
             size=result.size,
+            size_unit=result.size_unit.value if result.size_unit else None,
             status=result.status,
             game_id=result.game_id,
         )
@@ -176,10 +179,13 @@ async def add(
     user_id = verify_login(credentials=credentials)
 
     # 无条件校验游戏存在，不与详情视图缓存命中耦合（避免缓存未命中时漏校验）
-    query = await db.execute(select(Galgame.id).where(Galgame.id == game_id))
-    result = query.scalar_one_or_none()
-    if not result:
+    # db.get() 优先走 identity map，纯主键查询更高效
+    game = await db.get(Galgame, game_id)
+    if not game:
         raise HTTPException(status_code=404, detail="未找到该游戏")
+
+    # size_unit 字符串转枚举：空值保持 None，非空转为 SizeUnitEnum 实例
+    size_unit_val = SizeUnitEnum(data.size_unit) if data.size_unit else None
 
     new_link = Link(
         url=data.url,
@@ -189,6 +195,7 @@ async def add(
         game_id=game_id,
         category=data.category,
         size=data.size,
+        size_unit=size_unit_val,
         status=True  # 新增即公开，后续可由 control 路由管理
     )
 
@@ -235,6 +242,9 @@ async def review(
 
     if data.size is not None:
         result.size = data.size
+
+    if data.size_unit is not None:
+        result.size_unit = SizeUnitEnum(data.size_unit)
 
     await db.commit()
 

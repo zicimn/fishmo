@@ -98,9 +98,9 @@ async def get_list(
         return cache_data
 
     # 先校验游戏存在，避免对不存在的游戏返回空列表
-    existing_query = await db.execute(select(Galgame.id).where(Galgame.id == game_id))
-    existing_result = existing_query.scalar_one_or_none()
-    if not existing_result:
+    # db.get() 优先走 identity map，纯主键查询更高效
+    existing = await db.get(Galgame, game_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="未找到该游戏")
 
     skip = (page - 1) * size
@@ -161,9 +161,9 @@ async def add(
     user_id = verify_login(credentials=credentials)
 
     # 无条件校验游戏存在，不与详情视图缓存命中耦合
-    query = await db.execute(select(Galgame.id).where(Galgame.id == game_id))
-    result = query.scalar_one_or_none()
-    if not result:
+    # db.get() 优先走 identity map，纯主键查询更高效
+    game = await db.get(Galgame, game_id)
+    if not game:
         raise HTTPException(status_code=404, detail="未找到该游戏")
 
     new_comment = Comment(

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useGalgameDetail, deleteGalgame } from '~/composables/useGalgame'
+import { addFavorite, removeFavorite } from '~/composables/useFavorite'
 import { useAuthStore } from '~/stores/auth'
 import { getErrDetail } from '~/utils/request'
+import type { GalgameDetail } from '~/types'
 import { extractCoverAccent } from '~/utils/color'
 
 const route = useRoute()
@@ -74,6 +76,45 @@ const subNames = computed(() => {
 const isMounted = ref(false)
 const showOwnerActions = computed(() => isMounted.value && isOwner.value)
 
+// ===== 收藏交互 =====
+// 后端暂无"当前用户是否已收藏"接口，用 favorite > 0 作为近似初始值
+const isFavorited = ref(false)
+const favoriteCount = ref(0)
+const favoriteLoading = ref(false)
+
+// 数据加载完成后同步收藏状态
+watch(game, (g: GalgameDetail | null | undefined) => {
+  if (g) {
+    favoriteCount.value = g.favorite
+    // 近似判断：若收藏数 > 0 则假定当前用户已收藏（无精确接口时的兜底）
+    isFavorited.value = g.favorite > 0
+  }
+}, { immediate: true })
+
+async function toggleFavorite() {
+  if (!auth.isLoggedIn()) {
+    navigateTo(`/user?redirect=${encodeURIComponent(route.fullPath)}`)
+    return
+  }
+  if (favoriteLoading.value || !game.value) return
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await removeFavorite(game.value.id)
+      isFavorited.value = false
+      favoriteCount.value = Math.max(0, favoriteCount.value - 1)
+    } else {
+      await addFavorite(game.value.id)
+      isFavorited.value = true
+      favoriteCount.value += 1
+    }
+  } catch (e: any) {
+    ElMessage.error(getErrDetail(e, isFavorited.value ? '取消收藏失败' : '收藏失败'))
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
 // 仅客户端：从封面提取辅助色写入 --cover-accent（CSS 变量），SSR 首帧使用默认紫蓝，
 // 避免水合不匹配；提取失败时静默兜底为品牌主色（见 theme.css）。
 onMounted(() => {
@@ -141,9 +182,22 @@ onMounted(() => {
                 <el-icon><Star /></el-icon>
                 {{ game.likes }} 点赞
               </span>
-              <span class="hero-stat">
-                <el-icon><CollectionTag /></el-icon>
-                {{ game.favorite }} 收藏
+              <button
+                v-if="isMounted"
+                class="hero-fav-btn"
+                :class="{ 'is-favorited': isFavorited, 'is-loading': favoriteLoading }"
+                :disabled="favoriteLoading"
+                @click="toggleFavorite"
+              >
+                <el-icon :class="{ 'spin-icon': favoriteLoading }">
+                  <StarFilled v-if="isFavorited" />
+                  <Star v-else />
+                </el-icon>
+                <span>{{ favoriteCount }} 收藏</span>
+              </button>
+              <span v-else class="hero-stat">
+                <el-icon><Star /></el-icon>
+                {{ favoriteCount }} 收藏
               </span>
               <span class="hero-stat">更新：{{ formatDate(game.update_at) }}</span>
             </div>
@@ -207,7 +261,8 @@ onMounted(() => {
         </main>
 
         <aside class="detail-side">
-          <el-card shadow="never" class="side-card">
+          <!-- 侧栏：用 div 替代 el-card，避免自带 padding 与项目令牌冲突 -->
+          <div class="side-card">
             <h3 class="side-title">游戏信息</h3>
             <dl class="side-list">
               <div v-if="game.category" class="side-row">
@@ -237,9 +292,9 @@ onMounted(() => {
                 <dd>{{ formatDate(game.update_at) }}</dd>
               </div>
             </dl>
-          </el-card>
+          </div>
 
-          <el-card shadow="never" class="side-card">
+          <div class="side-card">
             <h3 class="side-title">数据</h3>
             <div class="side-stats">
               <div class="side-stat">
@@ -253,12 +308,12 @@ onMounted(() => {
                 <span class="side-stat-label">点赞</span>
               </div>
               <div class="side-stat">
-                <el-icon><CollectionTag /></el-icon>
-                <span class="side-stat-num">{{ game.favorite }}</span>
+                <el-icon><StarFilled /></el-icon>
+                <span class="side-stat-num">{{ favoriteCount }}</span>
                 <span class="side-stat-label">收藏</span>
               </div>
             </div>
-          </el-card>
+          </div>
         </aside>
       </div>
     </template>
@@ -269,7 +324,7 @@ onMounted(() => {
 .detail-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--fish-space-lg);
 }
 
 /* ========================================================
@@ -307,10 +362,10 @@ onMounted(() => {
 
 .hero-inner {
   display: flex;
-  gap: 28px;
+  gap: var(--fish-space-lg);
   align-items: center;
-  padding: 36px;
-  min-height: 340px;
+  padding: var(--fish-space-xl);
+  min-height: clamp(280px, 30vw, 400px);
 }
 
 .hero-cover-wrap {
@@ -321,10 +376,10 @@ onMounted(() => {
 .hero-cover {
   width: 200px;
   height: 280px;
-  border-radius: 10px;
+  border-radius: var(--fish-radius-sm);
   display: block;
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: var(--fish-shadow-lg);
+  border: 1px solid var(--fish-border-strong);
 }
 
 .hero-cover-fallback {
@@ -335,8 +390,8 @@ onMounted(() => {
   justify-content: center;
   background: var(--fish-bg-2);
   color: var(--fish-text-3);
-  font-size: 13px;
-  border-radius: 10px;
+  font-size: var(--fish-text-sm);
+  border-radius: var(--fish-radius-sm);
 }
 
 .hero-body {
@@ -346,9 +401,9 @@ onMounted(() => {
 
 .hero-tags {
   display: flex;
-  gap: 8px;
+  gap: var(--fish-space-sm);
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: var(--fish-space-md);
 }
 
 .hero-tag {
@@ -357,40 +412,40 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: rgba(255, 255, 255, 0.92);
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
   font-weight: 600;
 }
 
 .hero-title {
-  margin: 0 0 8px;
+  margin: 0 0 var(--fish-space-sm);
   font-size: 32px;
   font-weight: 800;
-  line-height: 1.25;
-  color: #f5f5f5;
+  line-height: var(--fish-leading-tight);
+  color: var(--fish-text-1);
 }
 
 .hero-names {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin: 0 0 16px;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
+  gap: var(--fish-space-xs) var(--fish-space-md);
+  margin: 0 0 var(--fish-space-md);
+  color: var(--fish-text-3);
+  font-size: var(--fish-text-base);
 }
 
 .hero-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
+  gap: var(--fish-space-md);
+  color: var(--fish-text-2);
+  font-size: var(--fish-text-base);
 }
 
 .hero-author {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--fish-space-sm);
 }
 
 .hero-stat {
@@ -399,10 +454,51 @@ onMounted(() => {
   gap: 5px;
 }
 
+/* 收藏按钮：方框按钮风格，accent 边框 + 半透明背景 */
+.hero-fav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fish-space-xs);
+  padding: var(--fish-space-xs) var(--fish-space-md);
+  border-radius: var(--fish-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--fish-text-sm);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.hero-fav-btn:hover {
+  color: var(--fish-accent);
+  border-color: var(--fish-accent-border);
+  background: var(--fish-accent-soft);
+}
+.hero-fav-btn.is-favorited {
+  color: var(--fish-accent);
+  border-color: var(--fish-accent);
+  background: var(--fish-accent-soft);
+  box-shadow: 0 0 12px -4px var(--fish-accent);
+}
+.hero-fav-btn.is-loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.spin-icon {
+  animation: fav-spin 0.8s linear infinite;
+}
+@keyframes fav-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .owner-actions {
-  margin-top: 20px;
+  margin-top: var(--fish-space-lg);
   display: flex;
-  gap: 12px;
+  gap: var(--fish-space-sm);
 }
 
 /* ========================================================
@@ -411,14 +507,14 @@ onMounted(() => {
 .detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 24px;
+  gap: var(--fish-space-lg);
   align-items: start;
 }
 
 .detail-main {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--fish-space-lg);
   min-width: 0;
 }
 
@@ -426,17 +522,17 @@ onMounted(() => {
   background: var(--fish-bg-2);
   border: 1px solid var(--fish-border);
   border-radius: var(--fish-radius);
-  padding: 24px;
+  padding: var(--fish-space-lg);
 }
 
 .block-title {
-  margin: 0 0 14px;
-  font-size: 17px;
+  margin: 0 0 var(--fish-space-md);
+  font-size: var(--fish-text-lg);
   font-weight: 700;
   color: var(--fish-text-1);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--fish-space-sm);
 }
 
 .block-title::before {
@@ -453,8 +549,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: var(--fish-space-sm);
+  margin-bottom: var(--fish-space-md);
 }
 .block-head .block-title {
   margin: 0;
@@ -462,8 +558,8 @@ onMounted(() => {
 
 .content {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.9;
+  font-size: var(--fish-text-base);
+  line-height: var(--fish-leading-relaxed);
   color: var(--fish-text-2);
   white-space: pre-wrap;
   word-break: break-word;
@@ -471,16 +567,16 @@ onMounted(() => {
 
 .gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--fish-space-sm);
 }
 
 .gallery-img {
   width: 100%;
   aspect-ratio: 16 / 10;
-  border-radius: 8px;
+  border-radius: var(--fish-radius-sm);
   cursor: zoom-in;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .gallery-img:hover {
@@ -493,16 +589,20 @@ onMounted(() => {
   top: 76px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--fish-space-md);
 }
 
+/* 侧栏卡片：div 替代 el-card，完全控制 padding/border 与令牌一致 */
 .side-card {
-  border-radius: 10px;
+  background: var(--fish-bg-2);
+  border: 1px solid var(--fish-border);
+  border-radius: var(--fish-radius);
+  padding: var(--fish-space-lg);
 }
 
 .side-title {
-  margin: 0 0 14px;
-  font-size: 15px;
+  margin: 0 0 var(--fish-space-md);
+  font-size: var(--fish-text-base);
   font-weight: 700;
   color: var(--fish-text-1);
 }
@@ -513,10 +613,10 @@ onMounted(() => {
 
 .side-row {
   display: flex;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--fish-space-sm);
+  padding: var(--fish-space-sm) 0;
   border-bottom: 1px solid var(--fish-border);
-  font-size: 13px;
+  font-size: var(--fish-text-sm);
 }
 
 .side-row:last-child {
@@ -534,16 +634,16 @@ onMounted(() => {
   color: var(--fish-text-2);
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--fish-space-xs);
   word-break: break-word;
 }
 
 .side-chip {
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 2px var(--fish-space-sm);
+  border-radius: var(--fish-radius-xs);
   background: var(--fish-bg);
   border: 1px solid var(--fish-border);
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
 }
 
 .side-stats {
@@ -555,14 +655,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--fish-space-xs);
   flex: 1;
   color: var(--fish-text-3);
-  font-size: 12px;
+  font-size: var(--fish-text-xs);
 }
 
 .side-stat-num {
-  font-size: 18px;
+  font-size: var(--fish-text-xl);
   font-weight: 700;
   color: var(--fish-text-1);
 }
@@ -585,7 +685,7 @@ onMounted(() => {
   .hero-inner {
     flex-direction: column;
     align-items: flex-start;
-    padding: 24px 20px;
+    padding: var(--fish-space-lg) var(--fish-space-md);
     min-height: auto;
   }
 
@@ -599,15 +699,15 @@ onMounted(() => {
   }
 
   .hero-title {
-    font-size: 24px;
+    font-size: var(--fish-text-2xl);
   }
 
   .block {
-    padding: 18px;
+    padding: var(--fish-space-md);
   }
 
   .gallery {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

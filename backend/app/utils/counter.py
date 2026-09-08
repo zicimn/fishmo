@@ -31,16 +31,20 @@ class ViewCounter:
         for gal_id_bytes, delta_bytes in all_delta.items():
             gal_id = int(gal_id_bytes)
             delta = int(delta_bytes)
-            params.append({"id": gal_id, "delta": delta})
+            # 修复：bindparam 名称不能与列名相同（'id' 是 SQLAlchemy 2.0 保留名），改用 'gal_id'
+            params.append({"gal_id": gal_id, "delta": delta})
 
         try:
-            # params = [{"gal_id": u["gal_id"], "delta": u["delta"]} for u in updates]
+            # 使用 Core 层表对象（Galgame.__table__）而非 ORM 类（Galgame），
+            # 绕开 SQLAlchemy 2.0 的 "ORM Bulk UPDATE by Primary Key" 模式——
+            # ORM 模式要求 params dict 必须包含主键列名 'id' 作为 key，
+            # 但 bindparam 名称又不能与列名相同（'id' 是保留名），两个约束互相矛盾。
+            # Core 层 UPDATE 只按 WHERE 子句定位行，不要求 params 包含主键 key，彻底规避冲突。
+            table = Galgame.__table__
             stmt = (
-                update(Galgame)
-                .values(views=Galgame.views + bindparam('delta'))
-                # 必须显式指定目标行，否则不带 WHERE 的 UPDATE 在未命中 ORM 主键推断
-                # 时会退化为逐条更新全表，污染所有游戏的浏览量
-                .where(Galgame.id == bindparam('id'))
+                update(table)
+                .where(table.c.id == bindparam('gal_id'))
+                .values(views=table.c.views + bindparam('delta'))
             )
             await db.execute(
                 stmt, 
@@ -54,4 +58,5 @@ class ViewCounter:
             return
 
         await redis_client.delete(cls.HASH_KEY)
-        print(f"成功同步 {len(updates)} 篇文章的浏览量到数据库")
+        # 修复：updates 变量不存在，应使用 params
+        print(f"成功同步 {len(params)} 篇文章的浏览量到数据库")

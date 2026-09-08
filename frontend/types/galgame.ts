@@ -121,3 +121,16 @@ export interface EditGal {
   tag?: string[] | null
   platfrom?: PlatformValue[] | null
 }
+
+/** 收藏列表项 */
+export interface FavoriteItem {
+  id: number
+  name: string
+  cover: string
+}
+
+/** 收藏列表响应 */
+export interface FavoriteList {
+  total: number
+  items: FavoriteItem[]
+}

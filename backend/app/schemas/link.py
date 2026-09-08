@@ -10,7 +10,8 @@ class LinkItem(BaseModel):
     content: Optional[str] = None
     code: Optional[str] = None
     category: Optional[str] = None
-    size: Optional[int] = None
+    size: Optional[float] = None
+    size_unit: Optional[str] = None
     status: bool
     # 所属游戏 id：按用户过滤的链接列表需要据此跳转到对应游戏/管理页
     game_id: int
@@ -22,7 +23,8 @@ class AddLink(BaseModel):
     content: Optional[str] = Field(default=None, max_length=255)
     code: Optional[str] = Field(default=None, max_length=255)
     category: Optional[str] = Field(default=None, max_length=255)
-    size: Optional[int] = None
+    size: Optional[float] = Field(default=None, ge=0)
+    size_unit: Optional[str] = Field(default=None, pattern="^(KB|MB|GB)$")
 
 
 class EditLink(BaseModel):
@@ -30,7 +32,8 @@ class EditLink(BaseModel):
     content: Optional[str] = Field(default=None, max_length=255)
     code: Optional[str] = Field(default=None, max_length=255)
     category: Optional[str] = Field(default=None, max_length=255)
-    size: Optional[int] = None
+    size: Optional[float] = Field(default=None, ge=0)
+    size_unit: Optional[str] = Field(default=None, pattern="^(KB|MB|GB)$")
 
 
 class LinkItems(BaseModel):

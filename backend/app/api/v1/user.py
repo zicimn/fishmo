@@ -35,7 +35,7 @@ async def login(
         raise HTTPException(status_code = 401, detail = "用户名或密码不正确")
 
     token = jwt.encode(
-        {"sub": str(user.id), "username": user.username},
+        {"sub": str(user.id), "username": user.username, "is_admin":user.is_admin},
         SECRET_KEY,
         algorithm=ALGORITHM
     )
@@ -44,6 +44,7 @@ async def login(
         "msg":"用户登录信息",
         "id" : user.id,
         "username": user.username,
+        "is_admin": user.is_admin,
         "access_token": token
     }
 
@@ -213,6 +214,3 @@ async def index(
     }
     
 
-
-        
-    

@@ -42,13 +42,17 @@ async def index(
 
     skip = (page - 1) * size
     # 过滤条件集中管理：列表查询与总数统计共用同一组 WHERE，保证两者口径一致
-    filters = [Galgame.status == True]  # 可见状态
+    filters = []
+    if author_id is not None:  # 按作者过滤（管理/个人主页列表）
+        filters.append(Galgame.author_id == author_id)
+    else: #作者可见自己的作品，其他人只能看到公开的
+        filters.append(Galgame.status == True)  # 可见状态
+
     if category:  # 有作品类型选择（枚举绑定原始字符串值，避免 str-枚举绑定歧义）
         filters.append(Galgame.category == category.value)
     if platform:  # 有选择平台
         filters.append(Galgame.platfrom.contains([platform]))
-    if author_id is not None:  # 按作者过滤（管理/个人主页列表）
-        filters.append(Galgame.author_id == author_id)
+    
 
     stmt = (
         select(Galgame.id, Galgame.author_id, Galgame.cn_name, Galgame.jp_name, Galgame.en_name, Galgame.cover, Galgame.views, User.username, User.avatar)
@@ -97,7 +101,7 @@ async def index(
 @router.get("/{id}")
 async def visit(
     id: int,
-    creadentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
     version = await get_search_version(GAL_VERSION_KEY)
@@ -123,7 +127,7 @@ async def visit(
 
     result, username, avatar = row
 
-    identity = verify_admin(creadentials=creadentials)
+    identity = verify_admin(credentials=credentials)
 
     if result.status == False and identity is False:
         raise HTTPException(status_code=403, detail="当前未被公开")
@@ -213,7 +217,7 @@ async def add(
         tag=data.tag,
         platfrom=data.platfrom,
         author_id=user_id,
-        status=True #以后后面出control路由进行管理
+        status=False  # 新增游戏默认待审核，管理员审核后公开
     )
 
     db.add(new_gal)

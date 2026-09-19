@@ -284,7 +284,12 @@ onMounted(() => {
               <div v-if="game.tag?.length" class="side-row">
                 <dt>标签</dt>
                 <dd>
-                  <span v-for="(t, i) in game.tag" :key="i" class="side-chip">{{ t }}</span>
+                  <NuxtLink
+                    v-for="(t, i) in game.tag"
+                    :key="i"
+                    :to="`/games?keyword=${encodeURIComponent(t)}&search_type=tag`"
+                    class="side-link"
+                  >{{ t }}</NuxtLink>
                 </dd>
               </div>
               <div class="side-row">
@@ -644,6 +649,25 @@ onMounted(() => {
   background: var(--fish-bg);
   border: 1px solid var(--fish-border);
   font-size: var(--fish-text-xs);
+}
+
+/* 标签可点击链接 */
+.side-link {
+  display: inline-block;
+  padding: 2px var(--fish-space-sm);
+  border-radius: var(--fish-radius-xs);
+  background: var(--fish-accent-soft);
+  border: 1px solid var(--fish-accent-border);
+  font-size: var(--fish-text-xs);
+  color: var(--fish-accent);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+.side-link:hover {
+  background: var(--fish-accent);
+  color: #fff;
+  border-color: var(--fish-accent);
 }
 
 .side-stats {

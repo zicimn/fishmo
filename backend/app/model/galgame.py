@@ -16,6 +16,7 @@ class Galgame(Base):
 
     id:Mapped[int] = mapped_column(Integer,primary_key=True,autoincrement=True)
 
+    name : Mapped[str] = mapped_column(String(50),unique=True,nullable=False,comment="游戏名称")
     # 三个名称列 NOT NULL：Python 侧默认空串兜底，避免缺省时写入 NULL 触发 IntegrityError
     cn_name:Mapped[str] = mapped_column(String(50),default="",comment="中文名称")
     en_name:Mapped[str] = mapped_column(String(50),default="",comment="英文名称")

@@ -6,11 +6,13 @@ import {
   type PlatformValue,
   type GalgameListQuery,
 } from '~/types'
-import { useGalgameList } from '~/composables/useGalgame'
+import { api, cleanParams } from '~/utils/request'
+import type { GalList } from '~/types'
 
 /**
- * 全部游戏页（/games）：作品/平台均为前后端统一枚举，下拉筛选 + 网格 + 分页。
- * URL 参数 ?category= / ?platform= / ?page= 同步，支持分享/刷新保持。
+ * 全部游戏页（/games）：作品/平台均为前后端统一枚举，横排筛选 + 网格 + 分页。
+ * URL 参数 ?search_type=tag&keyword= 支持从详情页标签跳转进行标签搜索。
+ * URL 参数 ?category= / ?platform= / ?page= 同步，支持分享/刷新保持/前进后退。
  */
 const route = useRoute()
 const router = useRouter()
@@ -23,45 +25,79 @@ function validPlatform(raw: string): PlatformValue | '' {
   return PLATFORM_OPTIONS.some((p) => p.value === raw) ? (raw as PlatformValue) : ''
 }
 
+// 从 URL 恢复搜索类型和关键词（从详情页标签跳转时携带）
+const urlSearchType = typeof route.query.search_type === 'string' ? route.query.search_type.trim() : ''
+const urlKeyword = typeof route.query.keyword === 'string' ? route.query.keyword.trim() : ''
+
 const filters = reactive({
+  searchType: urlSearchType,
+  keyword: urlKeyword,
   category: validCategory(typeof route.query.category === 'string' ? route.query.category : ''),
   platform: validPlatform(typeof route.query.platform === 'string' ? route.query.platform : ''),
   page: Number(route.query.page) || 1,
-  size: 12,
+  size: 20,
 })
 
-// 替换引用触发 useAsyncData 重新拉取（主网格）
 const listQuery = ref<GalgameListQuery>({ ...filters })
-const { data, pending, error, refresh } = useGalgameList(listQuery)
+
+// 当 searchType=tag 时使用搜索 API，否则使用 galgame 列表 API
+const { data, pending, error, refresh } = useAsyncData(
+  'games-page-list',
+  async () => {
+    const q = { ...listQuery.value }
+    if (q.searchType === 'tag' && q.keyword) {
+      // 标签搜索：使用搜索 API，保留 keyword, page, size；清除 category/platform/searchType
+      const { searchType, category, platform, ...rest } = q
+      return api<GalList>('/api/v1/search/', {
+        query: cleanParams({ ...rest, search_type: 'tag' }),
+      })
+    }
+    // 常规浏览：使用 galgame 列表 API，清除 searchType
+    const { searchType, ...rest } = q
+    return api<GalList>('/api/v1/galgame/', { query: cleanParams(rest) })
+  },
+  { watch: [listQuery] },
+)
 
 const total = computed(() => data.value?.total ?? 0)
 const items = computed(() => data.value?.items ?? [])
 
 function syncUrl() {
   const q: Record<string, string> = {}
+  if (filters.searchType) q.search_type = filters.searchType
+  if (filters.keyword) q.keyword = filters.keyword
   if (filters.category) q.category = filters.category
   if (filters.platform) q.platform = filters.platform
   if (filters.page > 1) q.page = String(filters.page)
   router.replace({ query: q })
 }
 
-function handleSearch() {
+/** 标签搜索时清除标签回到全部列表 */
+function clearTagSearch() {
+  filters.searchType = ''
+  filters.keyword = ''
   filters.page = 1
   listQuery.value = { ...filters }
   syncUrl()
 }
 
-// 作品/平台为横排可点选列表：点击切换筛选并立即搜索
-function selectCategory(value: CategoryValue | '') {
-  if (filters.category === value) return
-  filters.category = value
-  handleSearch()
+function handleFilterChange() {
+  filters.page = 1
+  listQuery.value = { ...filters }
+  syncUrl()
 }
 
-function selectPlatform(value: PlatformValue | '') {
+// 作品/平台筛选点击
+function handleCategorySelect(value: CategoryValue | '') {
+  if (filters.category === value) return
+  filters.category = value
+  handleFilterChange()
+}
+
+function handlePlatformSelect(value: PlatformValue | '') {
   if (filters.platform === value) return
   filters.platform = value
-  handleSearch()
+  handleFilterChange()
 }
 
 function handlePageChange(page: number) {
@@ -70,23 +106,66 @@ function handlePageChange(page: number) {
   syncUrl()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+
+/**
+ * 监听 URL query 变化（浏览器前进后退）：
+ * 同步到 filters，触发列表刷新。
+ */
+watch(
+  () => route.query,
+  (newQuery: Record<string, unknown>) => {
+    const st = typeof newQuery.search_type === 'string' ? newQuery.search_type.trim() : ''
+    const kw = typeof newQuery.keyword === 'string' ? newQuery.keyword.trim() : ''
+    const cat = validCategory(typeof newQuery.category === 'string' ? newQuery.category : '')
+    const plat = validPlatform(typeof newQuery.platform === 'string' ? newQuery.platform : '')
+    const pg = Number(newQuery.page) || 1
+
+    if (
+      filters.searchType !== st ||
+      filters.keyword !== kw ||
+      filters.category !== cat ||
+      filters.platform !== plat ||
+      filters.page !== pg
+    ) {
+      filters.searchType = st
+      filters.keyword = kw
+      filters.category = cat
+      filters.platform = plat
+      filters.page = pg
+      listQuery.value = { ...filters }
+    }
+  },
+)
 </script>
 
 <template>
   <div class="games-page">
+    <!-- ===== 页面标题：标签搜索时显示搜索提示 ===== -->
     <div class="page-head">
-      <h1 class="page-title">全部游戏</h1>
+      <h1 class="page-title">
+        {{ filters.searchType === 'tag' && filters.keyword ? `标签：${filters.keyword}` : '全部游戏' }}
+      </h1>
       <span class="page-count">共 {{ total }} 款</span>
     </div>
 
-    <!-- ===== 枚举筛选：作品 / 平台横排可点选 ===== -->
-    <div class="filter-rows">
+    <!-- ===== 标签搜索提示：当从详情页标签跳转时显示 ===== -->
+    <div v-if="filters.searchType === 'tag' && filters.keyword" class="tag-search-banner">
+      <span class="tag-search-label">标签搜索：</span>
+      <span class="tag-search-chip">{{ filters.keyword }}</span>
+      <el-button size="small" text @click="clearTagSearch">
+        <el-icon><Close /></el-icon>
+        清除筛选
+      </el-button>
+    </div>
+
+    <!-- ===== 枚举筛选：作品 / 平台横排可点选，标签搜索时隐藏 ===== -->
+    <div v-if="!filters.searchType" class="filter-rows">
       <div class="filter-row">
         <span class="filter-label">作品</span>
         <button
           class="filter-chip"
           :class="{ active: !filters.category }"
-          @click="selectCategory('')"
+          @click="handleCategorySelect('')"
         >
           全部
         </button>
@@ -95,7 +174,7 @@ function handlePageChange(page: number) {
           :key="c.value"
           class="filter-chip"
           :class="{ active: filters.category === c.value }"
-          @click="selectCategory(c.value)"
+          @click="handleCategorySelect(c.value)"
         >
           {{ c.label }}
         </button>
@@ -105,7 +184,7 @@ function handlePageChange(page: number) {
         <button
           class="filter-chip"
           :class="{ active: !filters.platform }"
-          @click="selectPlatform('')"
+          @click="handlePlatformSelect('')"
         >
           全部
         </button>
@@ -114,7 +193,7 @@ function handlePageChange(page: number) {
           :key="p.value"
           class="filter-chip"
           :class="{ active: filters.platform === p.value }"
-          @click="selectPlatform(p.value)"
+          @click="handlePlatformSelect(p.value)"
         >
           {{ p.label }}
         </button>
@@ -139,8 +218,18 @@ function handlePageChange(page: number) {
 
     <ClientOnly v-else-if="!items.length">
       <div class="empty-state">
-        <el-icon class="empty-icon" :size="48"><Compass /></el-icon>
-        <p class="empty-text">暂无符合条件的游戏</p>
+        <el-icon class="empty-icon" :size="48"><Search /></el-icon>
+        <p class="empty-text">
+          <template v-if="filters.searchType === 'tag'">
+            未找到标签为「<span class="empty-keyword">{{ filters.keyword }}</span>」的游戏
+          </template>
+          <template v-else-if="filters.keyword">
+            未找到与「<span class="empty-keyword">{{ filters.keyword }}</span>」相关的游戏
+          </template>
+          <template v-else>
+            暂无符合条件的游戏
+          </template>
+        </p>
         <NuxtLink to="/publish" class="empty-action">
           发布第一款 →
         </NuxtLink>
@@ -202,7 +291,32 @@ function handlePageChange(page: number) {
   color: var(--fish-text-3);
 }
 
-/* 筛选行：窄屏横滑而非换行混乱 */
+/* ===== 标签搜索提示条 ===== */
+.tag-search-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--fish-space-sm);
+  padding: var(--fish-space-sm) var(--fish-space-md);
+  border-radius: var(--fish-radius-sm);
+  background: var(--fish-accent-soft);
+  border: 1px solid var(--fish-accent-border);
+  font-size: var(--fish-text-sm);
+}
+
+.tag-search-label {
+  color: var(--fish-text-3);
+  font-weight: 600;
+}
+
+.tag-search-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--fish-accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--fish-text-xs);
+}
+
 .filter-rows {
   display: flex;
   flex-direction: column;
@@ -321,6 +435,11 @@ function handlePageChange(page: number) {
   margin: 0;
   font-size: var(--fish-text-lg);
   color: var(--fish-text-3);
+}
+
+.empty-keyword {
+  color: var(--fish-accent);
+  font-weight: 600;
 }
 
 .empty-action {

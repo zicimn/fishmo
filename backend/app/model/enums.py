@@ -26,7 +26,12 @@ class ReceiveEnum(int, PyEnum):
 
 
 class SizeUnitEnum(str, PyEnum):
-    """链接文件大小单位枚举，与 Link.size_unit 列对应"""
     KB = "KB"
     MB = "MB"
     GB = "GB"
+
+
+class SearchEnum(str, PyEnum):
+    name = "name"
+    tag = "tag"
+    company = "company"

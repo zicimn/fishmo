@@ -28,7 +28,7 @@ export function useAuth() {
       method: 'POST',
       body: { username, password },
     })
-    auth.setAuth(res.access_token, res.id, res.username)
+    auth.setAuth(res.access_token, res.id, res.username, res.is_admin)
     return res
   }
 
@@ -76,6 +76,7 @@ export function useAuth() {
     userId: auth.userId,
     username: auth.username,
     avatar: auth.avatar,
+    isAdmin: computed(() => auth.isAdmin),
     isLoggedIn: computed(() => !!auth.token),
     login,
     register,

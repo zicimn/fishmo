@@ -89,7 +89,8 @@ async def register(
         "username": new_user.username,
         "email": new_user.email,
         "bio": new_user.bio,
-        "avatar": new_user.avatar
+        "avatar": new_user.avatar,
+        "is_admin": new_user.is_admin
     }
 
 

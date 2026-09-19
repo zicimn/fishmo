@@ -48,7 +48,7 @@ export default defineNuxtConfig({
     // 页面切换：仅淡入淡出 200ms（动画规则见 assets/css/theme.css）
     pageTransition: { name: 'page-fade', mode: 'out-in' },
     head: {
-      title: 'fishmo · 美少女游戏信息站',
+      title: '和泉的小站',
       // 深色为主（《fishmo 视觉定位》Dark 游戏门户）；浅色为可切换的次级主题。
       // 深色 class="dark" 挂在 <html> 上。SSR 首帧不带 dark（与客户端首帧一致避免水合不匹配）；
       // 下方内联脚本在 paint 前默认加 dark，仅当 localStorage 显式存 'light' 时才保持浅色。
@@ -56,7 +56,7 @@ export default defineNuxtConfig({
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'fishmo 美少女游戏（galgame）信息发布平台' },
+        { name: 'description', content: '和泉的小站 - 美少女游戏（galgame）信息发布平台' },
         { name: 'theme-color', content: '#0b0b0f' },
       ],
       script: [
@@ -67,6 +67,7 @@ export default defineNuxtConfig({
       ],
       // 字体：Google Fonts（运行时浏览器加载，非构建期）；国内网络不可达时由 theme.css 的系统字体栈兜底
       link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {

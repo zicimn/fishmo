@@ -21,7 +21,8 @@ class GalList(BaseModel):
 
 
 class AddGal(BaseModel):
-    # 三个名称列在 DB 均为 NOT NULL，接口层保证至少一个名称非空，其余归一化为空串
+    name: Optional[str] = None
+    # 三个名称列保留兼容，可选
     cn_name: Optional[str] = None
     jp_name: Optional[str] = None
     en_name: Optional[str] = None
@@ -35,19 +36,21 @@ class AddGal(BaseModel):
     platfrom: Optional[List[PlatformEnum]] = None
 
     @model_validator(mode="after")
-    def _ensure_at_least_one_name(self):
-        # 数据库三列 NOT NULL 且无 server_default：必须保证至少一个名称非空，
-        # 未提供的名称统一置空串，避免 NULL 入库触发 IntegrityError。
-        if not any((self.cn_name, self.jp_name, self.en_name)):
-            raise ValueError("cn_name / jp_name / en_name 至少填写一个")
+    def _normalize_names(self):
+        # 三列 NOT NULL 兜底空串，避免 NULL 入库触发 IntegrityError
         self.cn_name = self.cn_name or ""
         self.jp_name = self.jp_name or ""
         self.en_name = self.en_name or ""
+        # name 优先用前端传入的值，否则从三名称派生
+        if not self.name:
+            self.name = self.cn_name or self.jp_name or self.en_name or ""
+        if not self.name:
+            raise ValueError("name / cn_name / jp_name / en_name 至少填写一个")
         return self
 
 
 class EditGal(BaseModel):
-
+    name: Optional[str] = None
     cn_name: Optional[str] = None
     jp_name: Optional[str] = None
     en_name: Optional[str] = None

@@ -24,10 +24,10 @@ const isNavOpen = ref(false)
 const userInitial = computed(() => (auth.username || 'U').charAt(0).toUpperCase())
 
 function handleSearch() {
-  if (!searchQuery.value.trim()) return
-  // 后端列表接口暂无 keyword 搜索参数（仅 category 精确 / platform 枚举过滤），不虚构能力。
-  // 待后端补充搜索接口后再接通。
-  ElMessage.info('搜索功能需后端先补接口（列表接口暂无 keyword 参数）')
+  const kw = searchQuery.value.trim()
+  if (!kw) return
+  // 导航到全部游戏页，keyword 同步到 URL query，游戏页从 URL 恢复并触发搜索
+  navigateTo({ path: '/games', query: { keyword: kw } })
   searchQuery.value = ''
 }
 
@@ -47,11 +47,11 @@ function closeNav() {
     <!-- ===== 固定顶栏导航 ===== -->
     <header class="topbar">
       <div class="topbar-inner">
-        <NuxtLink to="/" class="brand" aria-label="fishmo 首页">
+        <NuxtLink to="/" class="brand" aria-label="和泉的小站 首页">
           <span class="brand-mark">
-            <el-icon :size="16"><MagicStick /></el-icon>
+            <img src="/favicon.ico" alt="和泉的小站" class="brand-icon" />
           </span>
-          <span class="brand-text">fishmo</span>
+          <span class="brand-text">和泉的小站</span>
         </NuxtLink>
 
         <nav class="nav-links" @click="closeNav">
@@ -134,7 +134,7 @@ function closeNav() {
     </main>
 
     <footer class="layout-footer">
-      <p>fishmo · 美少女游戏信息站</p>
+      <p>和泉的小站 · 美少女游戏信息站</p>
     </footer>
   </div>
 </template>
@@ -188,6 +188,13 @@ function closeNav() {
   color: #fff;
   box-shadow: 0 4px 12px -4px rgba(124, 123, 242, 0.5);
   flex-shrink: 0;
+}
+
+.brand-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: block;
 }
 
 .brand-text {

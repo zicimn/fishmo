@@ -13,10 +13,10 @@ import {
 } from '~/types'
 
 /**
- * 游戏发布/编辑共用表单。
+ * 游戏发布/编辑共用表单（分步向导）。
  * - mode="add"：完整校验（至少一个名称 + 封面必填），提交 AddGal。
  * - mode="edit"：预填已发布字段；仅上传了新封面/新截图时才提交 cover/images（后端整体替换截图）。
- * - 布局：左侧分区表单 + 右侧 sticky 卡片实时预览（与首页 GameCard 同比例 2:3）。
+ * - 布局：单列居中分步向导，el-steps 步骤指示器 + 逐节展示 + 底部导航。
  */
 const props = defineProps<{
   mode: 'add' | 'edit'
@@ -28,6 +28,20 @@ const emit = defineEmits<{
   submit: [payload: AddGal | EditGal]
   cancel: []
 }>()
+
+// ===== 分步向导状态 =====
+const step = ref(0)
+const totalSteps = 3
+
+const STEP_LABELS = ['基本信息', '游戏简介', '封面与截图']
+
+function nextStep() {
+  if (step.value < totalSteps - 1) step.value++
+}
+
+function prevStep() {
+  if (step.value > 0) step.value--
+}
 
 const coverBase64 = ref('')
 const coverPreview = ref('')
@@ -174,7 +188,18 @@ function handleSubmit() {
 
 <template>
   <div class="gal-form-wrap">
-    <el-form label-position="top" class="gal-form gal-main" @submit.prevent="handleSubmit">
+    <!-- ===== 步骤指示器 ===== -->
+    <div class="steps-bar">
+      <el-steps :active="step" finish-status="success" align-center :space="200">
+        <el-step
+          v-for="(label, i) in STEP_LABELS"
+          :key="i"
+          :title="label"
+        />
+      </el-steps>
+    </div>
+
+    <el-form label-position="top" class="gal-form" @submit.prevent="handleSubmit">
       <el-alert
         v-if="mode === 'edit' && initial"
         type="info"
@@ -187,8 +212,8 @@ function handleSubmit() {
         </template>
       </el-alert>
 
-      <!-- ===== 基本信息 ===== -->
-      <section class="f-section">
+      <!-- ===== 步骤 1：基本信息 ===== -->
+      <section v-show="step === 0" class="f-section">
         <h3 class="f-section-title">基本信息</h3>
         <p class="f-section-desc">中文 / 日文 / 英文名称至少填写一个，用于站内检索与卡片展示。</p>
         <div class="form-grid">
@@ -227,129 +252,141 @@ function handleSubmit() {
             </el-select>
           </el-form-item>
         </div>
+        <div class="form-grid" style="margin-top: 16px;">
+          <el-form-item label="标签">
+            <el-select
+              v-model="form.tag"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              placeholder="输入后回车添加，如 治愈 / 致郁 / 纯爱"
+              style="width: 100%"
+            >
+              <el-option v-for="t in form.tag" :key="t" :label="t" :value="t" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="支持平台">
+            <div class="platform-chips">
+              <button
+                v-for="p in PLATFORM_OPTIONS"
+                :key="p.value"
+                type="button"
+                class="p-chip"
+                :class="{ active: form.platfrom.includes(p.value) }"
+                @click="togglePlatform(p.value)"
+              >
+                {{ p.label }}
+              </button>
+            </div>
+          </el-form-item>
+        </div>
+        <div class="step-actions">
+          <el-button @click="emit('cancel')">取消</el-button>
+          <el-button type="primary" @click="nextStep">下一步</el-button>
+        </div>
       </section>
 
-      <!-- ===== 游戏简介 ===== -->
-      <section class="f-section">
+      <!-- ===== 步骤 2：游戏简介 ===== -->
+      <section v-show="step === 1" class="f-section">
         <h3 class="f-section-title">游戏简介</h3>
         <p class="f-section-desc">介绍剧情、玩法与特色，展示在详情页「游戏简介」区块。</p>
         <el-input
           v-model="form.content"
           type="textarea"
-          :rows="5"
+          :rows="16"
           placeholder="介绍游戏内容……"
         />
+        <div class="step-actions">
+          <el-button @click="emit('cancel')">取消</el-button>
+          <el-button @click="prevStep">上一步</el-button>
+          <el-button type="primary" @click="nextStep">下一步</el-button>
+        </div>
       </section>
 
-      <!-- ===== 标签与平台 ===== -->
-      <section class="f-section">
-        <h3 class="f-section-title">标签与平台</h3>
-        <el-form-item label="标签">
-          <el-select
-            v-model="form.tag"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            placeholder="输入后回车添加，如 治愈 / 致郁 / 纯爱"
-            style="width: 100%"
-          >
-            <el-option v-for="t in form.tag" :key="t" :label="t" :value="t" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="支持平台">
-          <div class="platform-chips">
-            <button
-              v-for="p in PLATFORM_OPTIONS"
-              :key="p.value"
-              type="button"
-              class="p-chip"
-              :class="{ active: form.platfrom.includes(p.value) }"
-              @click="togglePlatform(p.value)"
-            >
-              {{ p.label }}
-            </button>
-          </div>
-        </el-form-item>
-      </section>
-
-      <!-- ===== 封面与截图 ===== -->
-      <section class="f-section">
+      <!-- ===== 步骤 3：封面与截图 + 卡片预览（左右双栏） ===== -->
+      <section v-show="step === 2" class="f-section">
         <h3 class="f-section-title">封面与截图</h3>
-        <el-form-item label="封面图" :required="mode === 'add'">
-          <el-upload
-            class="cover-uploader"
-            :show-file-list="false"
-            :auto-upload="false"
-            accept="image/*"
-            :on-change="onCoverChange"
-            :on-remove="onCoverRemove"
-          >
-            <div v-if="coverPreview" class="cover-box">
-              <el-image :src="coverPreview" fit="cover" class="cover-img" />
-              <div class="cover-mask">
-                <el-icon :size="16"><RefreshLeft /></el-icon>
-                <span>更换封面</span>
+        <div class="cover-preview-grid">
+          <!-- 左侧：封面上传 + 截图上传 -->
+          <div class="cover-upload-col">
+            <el-form-item label="封面图" :required="mode === 'add'">
+              <el-upload
+                class="cover-uploader"
+                :show-file-list="false"
+                :auto-upload="false"
+                accept="image/*"
+                :on-change="onCoverChange"
+                :on-remove="onCoverRemove"
+              >
+                <div v-if="coverPreview" class="cover-box">
+                  <el-image :src="coverPreview" fit="cover" class="cover-img" />
+                  <div class="cover-mask">
+                    <el-icon :size="16"><RefreshLeft /></el-icon>
+                    <span>更换封面</span>
+                  </div>
+                </div>
+                <div v-else class="cover-placeholder">
+                  <el-icon :size="26"><Plus /></el-icon>
+                  <span>上传 2:3 封面</span>
+                </div>
+              </el-upload>
+              <p class="f-hint">2:3 竖版封面：首页卡片与详情页主视觉均使用该比例，后端统一转为 WebP（≤5MB）。</p>
+            </el-form-item>
+
+            <el-form-item label="游戏截图">
+              <el-upload
+                v-model:file-list="imageFileList"
+                list-type="picture-card"
+                :auto-upload="false"
+                accept="image/*"
+                multiple
+                :on-change="onImagesChange"
+                :on-remove="onImagesRemove"
+              >
+                <el-icon><Plus /></el-icon>
+              </el-upload>
+              <p v-if="mode === 'edit'" class="f-hint">
+                编辑时新上传的截图将整体替换原截图；不上传新截图则保持原截图不变。
+              </p>
+            </el-form-item>
+          </div>
+
+          <!-- 右侧：卡片预览 -->
+          <div class="preview-col">
+            <div class="preview-head">卡片预览</div>
+            <div class="preview-card">
+              <div class="preview-cover">
+                <el-image v-if="coverPreview" :src="coverPreview" fit="cover" class="preview-cover-img" />
+                <div v-else class="preview-cover-ph">
+                  <el-icon :size="22"><Picture /></el-icon>
+                  <span>封面占位</span>
+                </div>
+                <span class="preview-new">新发布</span>
+              </div>
+              <div class="preview-info">
+                <div class="preview-name" :title="previewName">{{ previewName }}</div>
+                <div v-if="previewSubNames.length" class="preview-subnames">
+                  <span v-for="n in previewSubNames" :key="n">{{ n }}</span>
+                </div>
+                <div v-if="previewTags.length" class="preview-tags">
+                  <span v-for="t in previewTags" :key="t" class="p-tag">{{ t }}</span>
+                </div>
               </div>
             </div>
-            <div v-else class="cover-placeholder">
-              <el-icon :size="26"><Plus /></el-icon>
-              <span>上传 2:3 封面</span>
-            </div>
-          </el-upload>
-          <p class="f-hint">2:3 竖版封面：首页卡片与详情页主视觉均使用该比例，后端统一转为 WebP（≤5MB）。</p>
-        </el-form-item>
+            <p class="preview-note">预览即首页游戏卡片样式，发布后自动生效。</p>
+          </div>
+        </div>
 
-        <el-form-item label="游戏截图">
-          <el-upload
-            v-model:file-list="imageFileList"
-            list-type="picture-card"
-            :auto-upload="false"
-            accept="image/*"
-            multiple
-            :on-change="onImagesChange"
-            :on-remove="onImagesRemove"
-          >
-            <el-icon><Plus /></el-icon>
-          </el-upload>
-          <p v-if="mode === 'edit'" class="f-hint">
-            编辑时新上传的截图将整体替换原截图；不上传新截图则保持原截图不变。
-          </p>
-        </el-form-item>
+        <div class="step-actions">
+          <el-button @click="emit('cancel')">取消</el-button>
+          <el-button @click="prevStep">上一步</el-button>
+          <el-button type="primary" native-type="submit" :loading="submitting">
+            {{ mode === 'add' ? '发布游戏' : '保存修改' }}
+          </el-button>
+        </div>
       </section>
-
-      <div class="form-actions">
-        <el-button type="primary" native-type="submit" :loading="submitting">
-          {{ mode === 'add' ? '发布游戏' : '保存修改' }}
-        </el-button>
-        <el-button @click="emit('cancel')">取消</el-button>
-      </div>
     </el-form>
-
-    <!-- ===== 右侧实时预览 ===== -->
-    <aside class="gal-preview">
-      <div class="preview-head">卡片预览</div>
-      <div class="preview-card">
-        <div class="preview-cover">
-          <el-image v-if="coverPreview" :src="coverPreview" fit="cover" class="preview-cover-img" />
-          <div v-else class="preview-cover-ph">
-            <el-icon :size="22"><Picture /></el-icon>
-            <span>封面占位</span>
-          </div>
-          <span class="preview-new">新发布</span>
-        </div>
-        <div class="preview-info">
-          <div class="preview-name" :title="previewName">{{ previewName }}</div>
-          <div v-if="previewSubNames.length" class="preview-subnames">
-            <span v-for="n in previewSubNames" :key="n">{{ n }}</span>
-          </div>
-          <div v-if="previewTags.length" class="preview-tags">
-            <span v-for="t in previewTags" :key="t" class="p-tag">{{ t }}</span>
-          </div>
-        </div>
-      </div>
-      <p class="preview-note">预览即首页游戏卡片样式，发布后自动生效。</p>
-    </aside>
   </div>
 </template>
 
@@ -358,18 +395,24 @@ function handleSubmit() {
   margin-bottom: 16px;
 }
 
-/* ===== 左侧表单 + 右侧预览双栏 ===== */
+/* ===== 单列居中分步向导 ===== */
 .gal-form-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 24px;
-  align-items: start;
-}
-.gal-main {
+  max-width: 860px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  min-width: 0;
+  gap: 24px;
+}
+
+/* 步骤指示器：居中对称 */
+.steps-bar {
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: center;
+}
+/* 步骤标签强制不换行，即使空间紧凑也在一行 */
+.steps-bar :deep(.el-step__title) {
+  white-space: nowrap;
 }
 
 /* 分区卡片 */
@@ -378,6 +421,9 @@ function handleSubmit() {
   border: 1px solid var(--fish-border);
   border-radius: var(--fish-radius);
   padding: 24px;
+}
+.f-section + .f-section {
+  margin-top: 32px;
 }
 .f-section-title {
   display: inline-flex;
@@ -450,7 +496,7 @@ function handleSubmit() {
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
   background: var(--fish-bg);
-  display: block;
+  display: inline-block;
 }
 .cover-uploader :deep(.el-upload:hover) {
   border-color: var(--fish-accent);
@@ -495,20 +541,34 @@ function handleSubmit() {
   font-size: 13px;
 }
 
-/* 操作区 */
-.form-actions {
+/* ===== 步骤导航按钮 ===== */
+.step-actions {
   display: flex;
   gap: 12px;
-  margin-top: 4px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--fish-border);
 }
 
-/* ===== 右侧预览 ===== */
-.gal-preview {
-  position: sticky;
-  top: 80px;
+/* ===== 封面与截图 + 卡片预览左右双栏（步骤 3） ===== */
+.cover-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
+}
+.cover-upload-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.preview-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: sticky;
+  top: 80px;
 }
 .preview-head {
   font-size: 13px;
@@ -516,6 +576,7 @@ function handleSubmit() {
   color: var(--fish-text-2);
 }
 .preview-card {
+  max-width: 280px;
   background: var(--fish-bg-2);
   border: 1px solid var(--fish-border);
   border-radius: var(--fish-radius);
@@ -601,15 +662,23 @@ function handleSubmit() {
   line-height: 1.6;
 }
 
-/* ===== 响应式：预览折叠到下方 ===== */
-@media (max-width: 1024px) {
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
   .gal-form-wrap {
+    padding: 0 4px;
+  }
+  .step-actions {
+    flex-wrap: wrap;
+  }
+  .step-actions .el-button {
+    flex: 1;
+    min-width: 0;
+  }
+  .cover-preview-grid {
     grid-template-columns: 1fr;
   }
-  .gal-preview {
+  .preview-col {
     position: static;
-    order: -1;
-    max-width: 260px;
   }
 }
 </style>

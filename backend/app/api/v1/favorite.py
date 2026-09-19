@@ -125,7 +125,7 @@ async def flist(
     total = total_result.scalar()
 
     stmt = (
-        select(Galgame.id, Galgame.cn_name, Galgame.en_name, Galgame.jp_name, Galgame.cover)
+        select(Galgame.id, Galgame.name, Galgame.cover)
         .join(Favorite, Favorite.gal_id == Galgame.id)
         .where(*filters)
         .offset(skip)
@@ -136,9 +136,7 @@ async def flist(
     rows = result.all()
     items = []
 
-    # W2: GalBase 增加 id 字段，支持前端跳转
-    for gid, cn, en, jp, cover in rows:
-        name = cn or en or jp
+    for gid, name, cover in rows:
         items.append(GalBase(id=gid, name=name, cover=cover))
 
     data = GalBaseList(

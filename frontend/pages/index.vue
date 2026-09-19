@@ -2,25 +2,19 @@
 import type { GalItem, GalgameListQuery } from '~/types'
 import { useGalgameList } from '~/composables/useGalgame'
 
-// 门户发现数据：一次拉取较大页，用于精选 Hero / 热门条
-const discoveryQuery = ref<GalgameListQuery>({ page: 1, size: 50 })
-const { data: discovery } = useGalgameList(discoveryQuery, { key: 'home-discovery' })
+// 热门游戏：按浏览量倒序取前 10
+const popularQuery = ref<GalgameListQuery>({ page: 1, size: 10, sort: 'views' })
+const { data: popular } = useGalgameList(popularQuery, { key: 'home-popular' })
 
-const discoveryItems = computed(() => discovery.value?.items ?? [])
+// 最新发布：按更新时间倒序取前 10（默认排序）
+const latestQuery = ref<GalgameListQuery>({ page: 1, size: 10 })
+const { data: latest } = useGalgameList(latestQuery, { key: 'home-latest' })
 
-// 精选：浏览量最高的游戏（后端无 featured 语义，暂用 views 近似）
-const featured = computed<GalItem | null>(() => {
-  const sorted = [...discoveryItems.value].sort((a, b) => b.views - a.views)
-  return sorted[0] ?? null
-})
+const popularItems = computed(() => popular.value?.items ?? [])
+const latestItems = computed(() => latest.value?.items ?? [])
 
-// 热门：按浏览量取前 6
-const popular = computed<GalItem[]>(() => {
-  return [...discoveryItems.value].sort((a, b) => b.views - a.views).slice(0, 6)
-})
-
-// 最新发布：按 discovery 原始顺序（后端默认 updated_at 倒序）取前 8
-const latest = computed<GalItem[]>(() => discoveryItems.value.slice(0, 8))
+// 精选：热门中浏览量最高的游戏（popularItems 已按 views 倒序，首项即最高）
+const featured = computed<GalItem | null>(() => popularItems.value[0] ?? null)
 
 const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0).toUpperCase())
 </script>
@@ -48,7 +42,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
     </NuxtLink>
 
     <!-- ===== 热门游戏：横向滚动 + 序号突出前 3 ===== -->
-    <template v-if="popular.length">
+    <template v-if="popularItems.length">
       <div class="section-head">
         <h2 class="section-title">
           <el-icon class="section-icon"><TrendCharts /></el-icon>
@@ -59,7 +53,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
       </div>
       <div class="popular-scroll">
         <NuxtLink
-          v-for="(g, i) in popular"
+          v-for="(g, i) in popularItems"
           :key="g.id"
           :to="`/galgame/${g.id}`"
           class="popular-item"
@@ -76,7 +70,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
     </template>
 
     <!-- ===== 最新发布：按后端默认时间倒序 ===== -->
-    <template v-if="latest.length">
+    <template v-if="latestItems.length">
       <div class="section-head">
         <h2 class="section-title">
           <el-icon class="section-icon"><Clock /></el-icon>
@@ -86,7 +80,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
         <NuxtLink to="/games" class="section-more">更多 →</NuxtLink>
       </div>
       <div class="latest-grid">
-        <GameCard v-for="item in latest" :key="item.id" :item="item" />
+        <GameCard v-for="item in latestItems" :key="item.id" :item="item" />
       </div>
     </template>
 

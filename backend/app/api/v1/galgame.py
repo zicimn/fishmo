@@ -26,14 +26,20 @@ async def index(
     category: Optional[CategoryEnum] = None,
     platform: Optional[PlatformEnum] = None,
     author_id: Optional[int] = Query(None, description="按作者 id 过滤（我的游戏 / 个人主页列表）"),
+    keyword: Optional[str] = Query(None, description="按游戏名称关键词模糊搜索"),
+    sort: str = Query("updated_at", description="排序方式：updated_at（默认，按更新时间倒序）或 views（按浏览量倒序）"),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
+    # sort 参数校验：只接受允许的值
+    if sort not in ("updated_at", "views"):
+        sort = "updated_at"
+
     version = await get_search_version(GAL_VERSION_KEY)
     cache_key = get_cache_key(
         "Galgame", page=page, size=size, category=category, platform=platform,
-        author_id=author_id, version=version,
+        author_id=author_id, keyword=keyword, sort=sort, version=version,
     )
 
     cache_data = await get_from_cache(cache_key)
@@ -52,15 +58,23 @@ async def index(
         filters.append(Galgame.category == category.value)
     if platform:  # 有选择平台
         filters.append(Galgame.platfrom.contains([platform]))
-    
+
+    if keyword:  # 关键词模糊搜索：匹配三语言名称列（cn/en/jp），而非派生的 name 字段
+        filters.append(
+            or_(
+                Galgame.cn_name.ilike(f"%{keyword}%"),
+                Galgame.jp_name.ilike(f"%{keyword}%"),
+                Galgame.en_name.ilike(f"%{keyword}%"),
+            )
+        )
 
     stmt = (
-        select(Galgame.id, Galgame.author_id, Galgame.cn_name, Galgame.jp_name, Galgame.en_name, Galgame.cover, Galgame.views, User.username, User.avatar)
+        select(Galgame.id, Galgame.author_id, Galgame.name, Galgame.cover, Galgame.views, User.username, User.avatar)
         .join(Galgame.author)
         .where(*filters)
         .offset(skip)
         .limit(size)
-        .order_by(Galgame.updated_at.desc())
+        .order_by(Galgame.views.desc() if sort == "views" else Galgame.updated_at.desc())
     )
 
     result = await db.execute(stmt)
@@ -74,8 +88,7 @@ async def index(
 
     items = []
 
-    for id, author_id, cn, jp, en, cover, views, author, avatar in rows:
-        name = cn or jp or en or "undefind"
+    for id, author_id, name, cover, views, author, avatar in rows:
         items.append(
             GalItem(
                 id=id,
@@ -141,7 +154,7 @@ async def visit(
         "jp_name": result.jp_name,
         "en_name": result.en_name,
         "author_id": result.author_id,
-        "name": result.cn_name or result.jp_name or result.en_name or "other",
+        "name": result.name,
         "content": result.content,
         "company": result.company,
         "category": result.category,
@@ -170,24 +183,12 @@ async def add(
 ):
     user_id = verify_login(credentials=credentials)
 
-    # 去重只比较实际填写的名称（schema 已保证至少一个非空），避免空串误命中
-    existing_conditions = []
-    for col, val in (
-        (Galgame.cn_name, data.cn_name),
-        (Galgame.jp_name, data.jp_name),
-        (Galgame.en_name, data.en_name),
-    ):
-        if val:
-            existing_conditions.append(col == val)
-
-    if existing_conditions:
-        existing_query = await db.execute(
-            select(Galgame.cn_name, Galgame.jp_name, Galgame.en_name)
-            .where(or_(*existing_conditions))
-        )
-        existing_result = existing_query.scalar_one_or_none()
-        if existing_result:
-            raise HTTPException(status_code=409, detail="该游戏已存在")
+    # 去重：按 name 字段查重
+    existing_query = await db.execute(
+        select(Galgame.id).where(Galgame.name == data.name)
+    )
+    if existing_query.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="该游戏已存在")
 
     cover = None
     if data.cover:
@@ -205,6 +206,7 @@ async def add(
         data.images = images
 
     new_gal = Galgame(
+        name=data.name,
         cn_name=data.cn_name,
         jp_name=data.jp_name,
         en_name=data.en_name,
@@ -237,10 +239,10 @@ async def add(
 @router.delete("/delete")
 async def delete(
     id: int,
-    credentails: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = verify_login(credentials=credentails)
+    user_id = verify_login(credentials=credentials)
 
     query = await db.execute(
         select(Galgame)
@@ -280,10 +282,10 @@ async def delete(
 async def edit(
     id: int,
     data: EditGal,
-    credentails: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = verify_login(credentials=credentails)
+    user_id = verify_login(credentials=credentials)
 
     query = await db.execute(
         select(Galgame)
@@ -294,6 +296,15 @@ async def edit(
 
     if not result:
         raise HTTPException(status_code=403, detail="没有该游戏或者您不是发布者")
+
+    if data.name:
+        # 排除自身的 name 查重，防止改成已有游戏的名称
+        dup = await db.execute(
+            select(Galgame.id).where(Galgame.name == data.name, Galgame.id != id)
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="该游戏名称已存在")
+        result.name = data.name
 
     if data.cn_name:
         result.cn_name = data.cn_name
@@ -358,3 +369,11 @@ async def edit(
         "id": id,
         "user_id": user_id
     }
+
+
+
+@router.get("/random")
+async def rvisit(
+    db:AsyncSession = Depends(get_db)
+):
+    pass

@@ -4,6 +4,7 @@ const TOKEN_KEY = 'fishmo_token'
 const USERNAME_KEY = 'fishmo_username'
 const USER_ID_KEY = 'fishmo_user_id'
 const AVATAR_KEY = 'fishmo_avatar'
+const IS_ADMIN_KEY = 'gal_is_admin'
 
 /**
  * 认证状态（Pinia）：
@@ -14,19 +15,24 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref<number | null>(null)
   const username = ref<string | null>(null)
   const avatar = ref<string | null>(null)
+  const isAdmin = ref<boolean>(false)
 
   function isLoggedIn() {
     return !!token.value
   }
 
-  function setAuth(t: string, id?: number, name?: string) {
+  function setAuth(t: string, id?: number, name?: string, adminFlag?: number | boolean) {
     token.value = t
     if (id !== undefined) userId.value = id
     if (name !== undefined) username.value = name
+    if (adminFlag !== undefined) isAdmin.value = adminFlag === 1 || adminFlag === true
     if (import.meta.client) {
       localStorage.setItem(TOKEN_KEY, t)
       if (id !== undefined) localStorage.setItem(USER_ID_KEY, String(id))
       if (name !== undefined) localStorage.setItem(USERNAME_KEY, name)
+      if (adminFlag !== undefined) {
+        localStorage.setItem(IS_ADMIN_KEY, String(isAdmin.value ? 1 : 0))
+      }
     }
   }
 
@@ -48,11 +54,13 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = null
     username.value = null
     avatar.value = null
+    isAdmin.value = false
     if (import.meta.client) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USERNAME_KEY)
       localStorage.removeItem(USER_ID_KEY)
       localStorage.removeItem(AVATAR_KEY)
+      localStorage.removeItem(IS_ADMIN_KEY)
     }
   }
 
@@ -64,8 +72,9 @@ export const useAuthStore = defineStore('auth', () => {
       userId.value = rawId ? Number(rawId) : null
       username.value = localStorage.getItem(USERNAME_KEY)
       avatar.value = localStorage.getItem(AVATAR_KEY)
+      isAdmin.value = localStorage.getItem(IS_ADMIN_KEY) === '1'
     }
   }
 
-  return { token, userId, username, avatar, isLoggedIn, setAuth, setUsername, setAvatar, logout, initFromStorage }
+  return { token, userId, username, avatar, isAdmin, isLoggedIn, setAuth, setUsername, setAvatar, logout, initFromStorage }
 })

@@ -1,7 +1,7 @@
 # fishmo 修改与报错记录（fastapi_log.md）
 
 > 作用：记录后端开发过程中的**代码修改**与**报错/排查**过程，便于追溯。
-> 记录区间：2026-08-06 ~ 2026-08-16
+> 记录区间：2026-08-06 ~ 2026-09-17
 > 说明：文档如实记录，包含已修复、待处理、待确认三类条目。
 
 ## 目录
@@ -165,6 +165,79 @@
 - **文件**：`model/link.py`、`schemas/link.py`。
 - **修改**：`Link.galgame` 关系 `lazy="select"` → `"selectin"`（多对一统一 selectin，避免访问 author/galgame 时的隐式同步加载）；`AddLink.url` 补 `min_length=1`（避免空串链接入库）。
 
+### 1.23 新增 favorite（收藏）业务模块
+
+- **文件**：`model/favorite.py`、`api/v1/favorite.py`（新建）；`model/galgame.py`（`favorites` 关系）；`schemas/galgame.py`（`GalBase` / `GalBaseList`）；`api/v1/__init__.py`、`main.py`（注册 `favorite_router`）。
+- **内容**：
+  - 新增 `favorite` 表：`user_id` / `gal_id`（唯一约束 `uq_favorite_user_gal`）、`created_at`。外键均 `ondelete=RESTRICT`。
+  - 新增 4 个端点（前缀 `/api/v1/favorite`）：`POST /add`（收藏，`IntegrityError` 兜底 `409 已收藏`）、`DELETE /remove`（取消收藏）、`GET /visit`（按收藏 id 获取游戏 id）、`GET /list`（当前用户收藏列表，`response_model=GalBaseList`）。
+  - 收藏/取消收藏后用 SQL 原子自增/自减更新 `Galgame.favorite` 计数，并 `update_version(GAL_VERSION_KEY)`。
+- **关系**：`Favorite.author` / `Favorite.galgame` 多对一 `lazy="selectin"`；`User.favorites` / `Galgame.favorites` 集合侧 `lazy="raise"`。
+
+### 1.24 新增 search（搜索）模块
+
+- **文件**：`api/v1/search.py`（新建）；`api/v1/__init__.py`、`main.py`（注册 `search_router`）。
+- **内容**：
+  - 新增 1 个端点（前缀 `/api/v1/search`）：`GET /`（搜索游戏，支持 `keyword` + `search_type`（name/tag/company）+ 分页）。
+  - 关键词转义（`\`/`%`/`_` 替换为转义序列），按 `search_type` 选择匹配列：name 匹配三语言列 `cn_name/jp_name/en_name`，tag/company 用 `cast(JSON, String).ilike`。
+  - 仅返回公开作品（`status == True`），缓存结果（TTL 5 分钟）。
+- **已知问题**：缓存 key 未携带 `version` 参数，增删改后搜索结果不会立即失效。
+
+### 1.25 管理员控制台（admin control）完善
+
+- **文件**：`api/admin/control.py`（增强）、`api/admin/__init__.py`（新建）；`utils/verify_user.py`（新增 `verify_admin`）；`main.py`（注册 `control_router`）。
+- **内容**：
+  - 新增 `verify_admin` 函数：解析 JWT 中的 `is_admin` 字段，非管理员返回 `False`。
+  - 三个管理端点（前缀 `/api/admin/control`）：`GET /BrowseGal`（浏览待审核游戏，仅返回 ID 列表）、`PUT /UpdateStatus`（更新审核状态，通过/拒绝）、`DELETE /DeleteGal`（管理员删除游戏，无视作者）。
+  - 所有端点均校验管理员身份（非管理员 `403`），状态变更后执行完整缓存失效流程。
+- **已知问题**：`BrowseGal` 仅返回 ID 列表导致前端 N+1 请求；`UpdateStatus`/`DeleteGal` 不校验目标是否存在；使用 `print` 而非 logger。
+
+### 1.26 galgame 审核流程改造（status 默认值变更）
+
+- **文件**：`api/v1/galgame.py`、`model/galgame.py`。
+- **修改**：
+  - `add` 端点创建游戏时 `status=False`（原为 `True`），新增游戏默认待审核，管理员审核通过后公开。
+  - `visit` 端点新增管理员绕过逻辑：`verify_admin(credentials)` 校验身份，管理员可查看 `status=False` 的未审核游戏。
+  - `index` 端点新增 `keyword` 查询参数，支持按游戏名称关键词模糊搜索（`ilike` 匹配三语言列）。
+  - `index` 端点过滤逻辑调整：指定 `author_id` 时不做 `status` 过滤（作者可见自己未审核的作品），其他人只能看到公开的。
+
+### 1.27 galgame 模型新增统一 `name` 字段
+
+- **文件**：`model/galgame.py`、`schemas/galgame.py`。
+- **修改**：
+  - 新增 `name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)` 列，作为统一的游戏名称。
+  - `AddGal` schema 新增 `_normalize_names` 校验器：自动从 `cn_name/jp_name/en_name` 派生 `name`，三者至少一个非空。
+  - `EditGal` schema 新增 `name` 可选字段。
+  - 列表/搜索查询改为 `select(Galgame.name)` 取代此前的 `cn_name or jp_name or en_name` 派生逻辑。
+- **注意**：需要手动 DDL 迁移（`ALTER TABLE galgame ADD COLUMN name ...` + 回填 + 加 UNIQUE 约束），详见 `router.md` 第 5 节。
+
+### 1.28 新增 `CategoryEnum`、`SearchEnum`、`SizeUnitEnum` 枚举
+
+- **文件**：`model/enums.py`。
+- **修改**：
+  - 新增 `CategoryEnum`（10 个分类值），供 galgame 列表筛选和 add/edit schema 使用。
+  - 新增 `SearchEnum`（name/tag/company），已定义但 `search.py` 尚未绑定使用（`search_type` 仍为 `Optional[str]`）。
+  - 新增 `SizeUnitEnum`（KB/MB/GB），供 link 模块使用。
+
+### 1.29 前端管理员功能贯通
+
+- **文件**：`frontend/stores/auth.ts`、`frontend/composables/useAuth.ts`、`frontend/middleware/admin.ts`（新建）、`frontend/pages/admin/index.vue`（新建）、`frontend/pages/user/profile.vue`。
+- **内容**：
+  - `auth.ts` 新增 `isAdmin` 状态（从 JWT `is_admin` 字段恢复，持久化到 localStorage）。
+  - `useAuth.ts` 的 `login` 函数新增 `res.is_admin` 传递给 `setAuth`。
+  - 新建 `middleware/admin.ts`：客户端守卫，非管理员跳转首页（SSR 阶段放行）。
+  - 新建 `pages/admin/index.vue`：管理控制台页面（待审核列表 + 通过/拒绝/删除操作 + 分页）。
+  - `profile.vue` 新增"管理控制台"入口按钮（仅管理员可见）。
+
+### 1.30 前端全部游戏页增强
+
+- **文件**：`frontend/pages/games/index.vue`。
+- **修改**：
+  - 新增关键词搜索（`el-input` + 回车/按钮触发，与 URL query 同步）。
+  - 新增作品/平台横排筛选（chip 按钮，点击切换并立即搜索）。
+  - URL 参数双向同步（`keyword`/`category`/`platform`/`page`），支持分享/刷新/前进后退。
+  - 枚举值合法性校验（`validCategory`/`validPlatform`），非法值回退为空。
+
 ---
 
 ## 2. 报错/缺陷排查记录
@@ -288,9 +361,17 @@
 
 1. **CORS**：`allow_origins=["*"]` + `allow_credentials=True` 组合不符合浏览器规范且有安全风险，生产需白名单化。
 2. **`resend` 未入 `requirements.txt`**：venv 已装 2.35.0，新环境按清单安装后邮件功能会 `ImportError`（已复核 requirements.txt，仍未补）。
-3. **无 Alembic 迁移 / 无 `create_all`**：`user`/`galgame` 表需手动创建，结构漂移靠人眼比对。
+3. **无 Alembic 迁移 / 无 `create_all`**：`user`/`galgame`/`link`/`comment`/`favorite` 表需手动创建，结构漂移靠人眼比对。新增 `galgame.name`（UNIQUE + NOT NULL）列和 `favorite` 表需要手动 DDL 迁移。
 4. **无请求级日志/可观测性**：全程 `print`/`logging`，无结构化日志、无 trace_id（`sentry-sdk` 已装未用）。
 5. **`email/send` 的 `email` 是 query 参数**：既有框架文档误写为 body，实际为 `?email=xxx`（已以 router.md/OpenAPI 为准）。
 6. **无测试、无 lint、无 CI**：本次审核建议引入 `ruff`（未使用导入/拼写）、`mypy`（类型错误，可拦截 `User.name` 这类问题）、`pytest`（核心路径补测试，含查询条数断言防 `selectin` 回归）。
 7. **字段拼写**：`platfrom`（应为 platform）、`update_at`（应为 updated_at）为既有拼写，改动需数据库迁移。
 8. **galgame 列表排序不稳定**：`order_by(updated_at)` 无次级排序，同值记录分页可能重复/遗漏。
+9. **search 缓存 key 未携带 version**：`search.py` 的 `get_cache_key("Search", ...)` 未传入 `version` 参数，增删改后搜索结果不会立即失效，需等 TTL 过期。
+10. **galgame 列表 keyword 搜索未转义 LIKE 通配符**：`galgame.py` 的 `index` 端点 `ilike` 未转义 `%`/`_`，`search.py` 已做转义但此处遗漏。
+11. **admin 接口不校验目标是否存在**：`UpdateStatus` 和 `DeleteGal` 在 `gal_id` 不存在时 `rowcount=0`，仍返回成功消息并无意义地递增版本号。
+12. **admin BrowseGal 仅返回 ID 列表**：前端被迫逐个调用详情接口补充信息，产生 N+1 请求问题。
+13. **`main.py` 重复导入 `CORSMiddleware`**：第 2 行和第 9 行重复导入同一模块。
+14. **`SearchEnum` 已定义但未使用**：`model/enums.py` 定义了 `SearchEnum`，但 `search.py` 的 `search_type` 参数为 `Optional[str]`，未绑定枚举校验。
+15. **`control.py` 使用 `print` 而非 logger**：异常处理中使用 `print` 输出错误信息，生产环境下不会被日志收集器捕获。
+16. **`logs/app.log` 不应纳入版本控制**：日志文件已出现在 git diff 中，应添加到 `.gitignore`。

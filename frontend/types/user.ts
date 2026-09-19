@@ -9,6 +9,7 @@ export interface LoginResponse {
   msg: string
   id: number
   username: string
+  is_admin: number
   access_token: string
 }
 

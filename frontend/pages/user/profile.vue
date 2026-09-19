@@ -87,6 +87,12 @@ function handleLogout() {
           <p class="pc-bio" :class="{ muted: !profile.bio }">
             {{ profile.bio || '这个人很神秘，还没有填写简介。' }}
           </p>
+          <div v-if="authStore.isAdmin" class="pc-admin">
+            <el-button type="warning" @click="navigateTo('/admin')">
+              <el-icon><Setting /></el-icon>
+              管理控制台
+            </el-button>
+          </div>
         </div>
       </section>
 
@@ -202,6 +208,9 @@ function handleLogout() {
 }
 .pc-bio.muted {
   color: var(--fish-text-3);
+}
+.pc-admin {
+  margin-top: 12px;
 }
 
 /* ========================================================

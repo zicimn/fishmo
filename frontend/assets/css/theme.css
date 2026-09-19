@@ -1,5 +1,5 @@
 /* ============================================================
-   fishmo · 《fishmo 视觉定位》设计系统
+   和泉的小站 · 《fishmo 视觉定位》设计系统
    Dark 深色游戏门户（默认深色）+ 柔和紫蓝主色 + 克制阴影
    在 element-plus/dist/index.css 与 element-plus/theme-chalk/dark/css-vars.css
    之后引入（见 nuxt.config.ts 的 css 数组），通过覆盖 --el-* 变量落地：

@@ -66,6 +66,12 @@ export interface GalgameListQuery {
   platform?: string
   /** 按作者 id 过滤（我的游戏 / 个人主页列表） */
   author_id?: number
+  /** 关键词搜索（模糊匹配游戏名称，tag 搜索时也使用此字段） */
+  keyword?: string
+  /** 排序方式："updated_at" （默认，按更新时间倒序）或 "views" （按浏览量倒序） */
+  sort?: string
+  /** 搜索类型：仅在标签搜索时使用 "tag"，触发搜索 API 调用 */
+  searchType?: string
   page?: number
   size?: number
 }
@@ -96,6 +102,8 @@ export interface GalgameDetail {
 
 /** POST /api/v1/galgame/add 请求体（cover 必填，三名称至少一个非空） */
 export interface AddGal {
+  /** 统一名称（可选，后端自动从 cn_name/jp_name/en_name 派生） */
+  name?: string | null
   cn_name: string | null
   jp_name: string | null
   en_name: string | null
@@ -110,6 +118,8 @@ export interface AddGal {
 
 /** PUT /api/v1/galgame/edit 请求体（全部可选） */
 export interface EditGal {
+  /** 统一名称（可选，后端自动从 cn_name/jp_name/en_name 派生） */
+  name?: string | null
   cn_name?: string | null
   jp_name?: string | null
   en_name?: string | null

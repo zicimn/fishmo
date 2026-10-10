@@ -17,6 +17,7 @@ from typing import Optional
 from utils.verify_user import verify_login,verify_admin
 from utils.webp import upload_image_to_cloudinary, upload_images_to_cloudinary
 from utils.counter import ViewCounter
+import random
 
 router = APIRouter(prefix="/api/v1/galgame", tags=["gal"])
 security = HTTPBearer(auto_error=False)
@@ -110,69 +111,33 @@ async def index(
 
     return data
 
-
-@router.get("/{id}")
-async def visit(
-    id: int,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: AsyncSession = Depends(get_db)
+@router.get("/rvisit")
+async def rvisit(
+    db:AsyncSession = Depends(get_db)
 ):
-    version = await get_search_version(GAL_VERSION_KEY)
-    cache_key = get_cache_key("Gal_visit", id=id, version=version)
+    result = await db.execute(
+        select(func.max(Galgame.id),func.min(Galgame.id))
+    )
+    max_id,min_id = result.one()
 
-    # 浏览量计数与响应缓存解耦：无论缓存是否命中都必须执行 Redis 计数，
-    # 否则缓存命中时浏览量会漏计。计数先于缓存判断执行；Redis hash 累积值
-    # 由 scheduler 定时批量落库，此处不做落库。
-    delta = await ViewCounter.incr(id)
+    if min_id is None:
+        raise HTTPException(status_code=404,detail="暂无游戏")
 
-    cache_data = await get_from_cache(cache_key)
-    if cache_data:
-        # 缓存命中：直接返回缓存内容（views 为写缓存时的值，滞后最长一个缓存周期，可接受）
-        return cache_data
+    rand_id = random.randint(min_id,max_id)
 
     query = await db.execute(
-        select(Galgame, User.username, User.avatar).join(Galgame.author).where(Galgame.id == id)
+        select(Galgame.id)
+        .where(Galgame.id >= rand_id)
+        .where(Galgame.status == True)
+        .order_by(Galgame.id)
+        .limit(1)
     )
-    row = query.first()
+    id = query.scalar_one_or_none()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="未找到")
-
-    result, username, avatar = row
-
-    identity = verify_admin(credentials=credentials)
-
-    if result.status == False and identity is False:
-        raise HTTPException(status_code=403, detail="当前未被公开")
-
-    views_total = (result.views or 0) + delta
-
-    data = {
-        "msg": "查询成功",
-        "id": result.id,
-        "cn_name": result.cn_name,
-        "jp_name": result.jp_name,
-        "en_name": result.en_name,
-        "author_id": result.author_id,
-        "name": result.name,
-        "content": result.content,
-        "company": result.company,
-        "category": result.category,
-        "cover": result.cover,
-        "images": result.images,
-        "tag": result.tag,
-        "views": views_total,
-        "likes": result.likes,
-        "favorite": result.favorite,
-        "platfrom": result.platfrom,
-        "update_at": result.updated_at,
-        "author_name": username,
-        "author_avatar": avatar
+    return {
+        "msg" :  f"随即游戏id为{id}",
+        "id"  :  id
     }
-
-    await set_to_cache(cache_key, data, expire=60 * 30)
-
-    return data
 
 
 @router.post("/add")
@@ -372,8 +337,65 @@ async def edit(
 
 
 
-@router.get("/random")
-async def rvisit(
-    db:AsyncSession = Depends(get_db)
+@router.get("/{id}")
+async def visit(
+    id: int,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db)
 ):
-    pass
+    version = await get_search_version(GAL_VERSION_KEY)
+    cache_key = get_cache_key("Gal_visit", id=id, version=version)
+
+    # 浏览量计数与响应缓存解耦：无论缓存是否命中都必须执行 Redis 计数，
+    # 否则缓存命中时浏览量会漏计。计数先于缓存判断执行；Redis hash 累积值
+    # 由 scheduler 定时批量落库，此处不做落库。
+    delta = await ViewCounter.incr(id)
+
+    cache_data = await get_from_cache(cache_key)
+    if cache_data:
+        # 缓存命中：直接返回缓存内容（views 为写缓存时的值，滞后最长一个缓存周期，可接受）
+        return cache_data
+
+    query = await db.execute(
+        select(Galgame, User.username, User.avatar).join(Galgame.author).where(Galgame.id == id)
+    )
+    row = query.first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="未找到")
+
+    result, username, avatar = row
+
+    identity = verify_admin(credentials=credentials)
+
+    if result.status == False and identity is False:
+        raise HTTPException(status_code=403, detail="当前未被公开")
+
+    views_total = (result.views or 0) + delta
+
+    data = {
+        "msg": "查询成功",
+        "id": result.id,
+        "cn_name": result.cn_name,
+        "jp_name": result.jp_name,
+        "en_name": result.en_name,
+        "author_id": result.author_id,
+        "name": result.name,
+        "content": result.content,
+        "company": result.company,
+        "category": result.category,
+        "cover": result.cover,
+        "images": result.images,
+        "tag": result.tag,
+        "views": views_total,
+        "likes": result.likes,
+        "favorite": result.favorite,
+        "platfrom": result.platfrom,
+        "update_at": result.updated_at,
+        "author_name": username,
+        "author_avatar": avatar
+    }
+
+    await set_to_cache(cache_key, data, expire=60 * 30)
+
+    return data

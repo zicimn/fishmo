@@ -11,11 +11,12 @@ definePageMeta({ middleware: 'auth' })
 const authStore = useAuthStore()
 const { fetchProfile } = useAuth()
 
-type MenuName = 'games' | 'comments' | 'links' | 'favorites' | 'settings'
+type MenuName = 'games' | 'articles' | 'comments' | 'links' | 'favorites' | 'settings'
 
 // 左侧透明菜单项（图标为全局注册的 Element Plus 图标组件名）
 const menuItems: { name: MenuName; label: string; icon: string }[] = [
   { name: 'games', label: '游戏', icon: 'Trophy' },
+  { name: 'articles', label: '文章', icon: 'Document' },
   { name: 'comments', label: '评论', icon: 'ChatDotRound' },
   { name: 'links', label: '链接', icon: 'Link' },
   { name: 'favorites', label: '收藏', icon: 'StarFilled' },
@@ -58,11 +59,11 @@ function handleLogout() {
   <div class="profile-page">
     <el-skeleton v-if="loading && !profile" :rows="4" animated />
     <ClientOnly v-else-if="!profile">
-      <el-empty description="未获取到用户信息">
-        <template #extra>
-          <el-button @click="loadProfile()">重试</el-button>
-        </template>
-      </el-empty>
+      <div class="empty-state">
+        <img src="/status/1.png" alt="未获取到用户信息" class="empty-404" />
+        <p class="empty-text">未获取到用户信息</p>
+        <el-button size="small" @click="loadProfile()">重试</el-button>
+      </div>
     </ClientOnly>
 
     <template v-else>
@@ -84,15 +85,22 @@ function handleLogout() {
             <el-icon><Message /></el-icon>
             {{ profile.email }}
           </p>
+          <p class="pc-stats">
+            <span class="stat-item">
+              <el-icon><Trophy /></el-icon>
+              <span>{{ profile.gal_cnt }}</span>
+              <span class="stat-label">游戏</span>
+            </span>
+            <span class="stat-divider" />
+            <span class="stat-item">
+              <el-icon><Document /></el-icon>
+              <span>{{ profile.article_cnt }}</span>
+              <span class="stat-label">文章</span>
+            </span>
+          </p>
           <p class="pc-bio" :class="{ muted: !profile.bio }">
             {{ profile.bio || '这个人很神秘，还没有填写简介。' }}
           </p>
-          <div v-if="authStore.isAdmin" class="pc-admin">
-            <el-button type="warning" @click="navigateTo('/admin')">
-              <el-icon><Setting /></el-icon>
-              管理控制台
-            </el-button>
-          </div>
         </div>
       </section>
 
@@ -118,6 +126,7 @@ function handleLogout() {
 
         <main class="dash-content">
           <MyGames v-if="activeTab === 'games'" />
+          <MyArticles v-else-if="activeTab === 'articles'" />
           <MyComments v-else-if="activeTab === 'comments'" />
           <MyLinks v-else-if="activeTab === 'links'" />
           <MyFavorites v-else-if="activeTab === 'favorites'" />
@@ -151,7 +160,7 @@ function handleLogout() {
   align-items: center;
   gap: 24px;
   padding: 28px 32px;
-  background: var(--fish-bg-2);
+  background: transparent;
   border: 1px solid var(--fish-border);
   border-radius: var(--fish-radius);
   box-shadow: var(--fish-shadow);
@@ -199,6 +208,34 @@ function handleLogout() {
   color: var(--fish-accent);
   font-weight: 500;
 }
+.pc-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--fish-text-1);
+}
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.stat-item .el-icon {
+  font-size: 15px;
+  color: var(--fish-accent);
+}
+.stat-label {
+  font-weight: 400;
+  color: var(--fish-text-3);
+  font-size: 13px;
+}
+.stat-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--fish-border);
+}
 .pc-bio {
   margin: 0;
   font-size: 14px;
@@ -208,9 +245,6 @@ function handleLogout() {
 }
 .pc-bio.muted {
   color: var(--fish-text-3);
-}
-.pc-admin {
-  margin-top: 12px;
 }
 
 /* ========================================================
@@ -277,14 +311,14 @@ function handleLogout() {
   min-width: 0;
 }
 
-/* 设置卡片：标准实底卡片，与站点主体一致 */
+/* 设置卡片：透明背景 */
 .settings-card {
-  --el-card-bg-color: var(--fish-bg-2);
+  --el-card-bg-color: transparent;
   --el-card-border-color: var(--fish-border);
-  background: var(--fish-bg-2);
+  background: transparent;
   border: 1px solid var(--fish-border);
   border-radius: var(--fish-radius);
-  box-shadow: var(--fish-shadow);
+  box-shadow: none;
 }
 .card-title {
   font-size: 16px;

@@ -37,6 +37,8 @@ export interface UserProfile {
   avatar: string | null
   bio: string | null
   email: string
+  gal_cnt: number
+  article_cnt: number
 }
 
 /** PUT /api/v1/user/update 请求体（全部可选） */

@@ -22,6 +22,7 @@ SEARCH_VERSION_KEY = "search_version"
 GAL_VERSION_KEY = "gal_version"
 LINK_VERSION_KEY = "link_version"
 COMMENT_VERSION_KEY = "comment_version"
+ARTICLE_VERSION_KEY = "article_version"
 
 
 async def get_search_version(name: str = SEARCH_VERSION_KEY):

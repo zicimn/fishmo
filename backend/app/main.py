@@ -1,13 +1,10 @@
-from fastapi import FastAPI
+import os
 from fastapi.middleware.cors import CORSMiddleware
-from api.v1 import user_router, email_router, gal_router, link_router, comment_router, favorite_router, search_router
+from api.service import user_router, email_router, gal_router, link_router, comment_router, favorite_router, search_router, article_router
 from api.admin import control_router
 import uvicorn
 import logging
 from contextlib import asynccontextmanager
-from config.security import SECRET_KEY, RESEND_API_KEY
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from utils import shutdown_scheduler, start_scheduler
 from config import async_engine
 
@@ -29,9 +26,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # 允许前端跨域访问
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+cors_origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # 允许所有来源
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +43,7 @@ app.include_router(link_router)
 app.include_router(comment_router)
 app.include_router(favorite_router)
 app.include_router(search_router)
+app.include_router(article_router)
 app.include_router(control_router)
 
 if __name__ == "__main__":

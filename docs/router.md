@@ -1,7 +1,7 @@
 # fishmo 路由文档（router.md）
 
 > 适用仓库：`D:\vscode\fishmo`（分支 `main`）
-> 文档版本：2026-09-17 · 基于当前工作区代码 + OpenAPI schema 核对撰写
+> 文档版本：2026-10-03 · 基于当前工作区代码 + OpenAPI schema 核对撰写
 > 说明：本文档如实反映仓库现状（含已实现功能与已知限制），未编造不存在的接口。
 
 ## 目录
@@ -21,33 +21,41 @@
     - [2.6 POST /api/v1/email/send 发送邮箱验证码](#26-post-apiv1emailsend-发送邮箱验证码)
   - [galgame 模块](#galgame-模块)
     - [2.7 GET /api/v1/galgame/ 游戏列表](#27-get-apiv1galgame-游戏列表)
-    - [2.8 GET /api/v1/galgame/{id} 游戏详情](#28-get-apiv1galgameid-游戏详情)
-    - [2.9 POST /api/v1/galgame/add 发布游戏](#29-post-apiv1galgameadd-发布游戏)
-    - [2.10 DELETE /api/v1/galgame/delete 删除游戏](#210-delete-apiv1galgamedelete-删除游戏)
-    - [2.11 PUT /api/v1/galgame/edit 编辑游戏](#211-put-apiv1galgameedit-编辑游戏)
+    - [2.8 GET /api/v1/galgame/rvisit 随机游戏](#28-get-apiv1galgamervisit-随机游戏)
+    - [2.9 GET /api/v1/galgame/{id} 游戏详情](#29-get-apiv1galgameid-游戏详情)
+    - [2.10 POST /api/v1/galgame/add 发布游戏](#210-post-apiv1galgameadd-发布游戏)
+    - [2.11 DELETE /api/v1/galgame/delete 删除游戏](#211-delete-apiv1galgamedelete-删除游戏)
+    - [2.12 PUT /api/v1/galgame/edit 编辑游戏](#212-put-apiv1galgameedit-编辑游戏)
   - [link 模块](#link-模块)
-    - [2.12 GET /api/v1/link/{game_id} 链接列表](#212-get-apiv1linkgame_id-链接列表)
-    - [2.13 POST /api/v1/link/add 添加链接](#213-post-apiv1linkadd-添加链接)
-    - [2.14 PUT /api/v1/link/review 编辑链接](#214-put-apiv1linkreview-编辑链接)
-    - [2.15 DELETE /api/v1/link/delete 删除链接](#215-delete-apiv1linkdelete-删除链接)
-    - [2.20 GET /api/v1/link/user/{user_id} 按用户获取链接列表](#220-get-apiv1linkuseruser_id-按用户获取链接列表)
+    - [2.13 GET /api/v1/link/{game_id} 链接列表](#213-get-apiv1linkgame_id-链接列表)
+    - [2.14 POST /api/v1/link/add 添加链接](#214-post-apiv1linkadd-添加链接)
+    - [2.15 PUT /api/v1/link/review 编辑链接](#215-put-apiv1linkreview-编辑链接)
+    - [2.16 DELETE /api/v1/link/delete 删除链接](#216-delete-apiv1linkdelete-删除链接)
+    - [2.21 GET /api/v1/link/user/{user_id} 按用户获取链接列表](#221-get-apiv1linkuseruser_id-按用户获取链接列表)
   - [comment 模块](#comment-模块)
-    - [2.16 GET /api/v1/comment/{game_id} 评论列表](#216-get-apiv1commentgame_id-评论列表)
-    - [2.17 POST /api/v1/comment/add 发表评论](#217-post-apiv1commentadd-发表评论)
-    - [2.18 PUT /api/v1/comment/edit 编辑评论](#218-put-apiv1commentedit-编辑评论)
-    - [2.19 DELETE /api/v1/comment/delete 删除评论](#219-delete-apiv1commentdelete-删除评论)
-    - [2.21 GET /api/v1/comment/user/{user_id} 按用户获取评论列表](#221-get-apiv1commentuseruser_id-按用户获取评论列表)
+    - [2.17 GET /api/v1/comment/{game_id} 评论列表](#217-get-apiv1commentgame_id-评论列表)
+    - [2.18 POST /api/v1/comment/add 发表评论](#218-post-apiv1commentadd-发表评论)
+    - [2.19 PUT /api/v1/comment/edit 编辑评论](#219-put-apiv1commentedit-编辑评论)
+    - [2.20 DELETE /api/v1/comment/delete 删除评论](#220-delete-apiv1commentdelete-删除评论)
+    - [2.22 GET /api/v1/comment/user/{user_id} 按用户获取评论列表](#222-get-apiv1commentuseruser_id-按用户获取评论列表)
   - [favorite 模块](#favorite-模块)
-    - [2.22 POST /api/v1/favorite/add 收藏游戏](#222-post-apiv1favoriteadd-收藏游戏)
-    - [2.23 DELETE /api/v1/favorite/remove 取消收藏](#223-delete-apiv1favoriteremove-取消收藏)
-    - [2.24 GET /api/v1/favorite/visit 访问收藏](#224-get-apiv1favoritevisit-访问收藏)
-    - [2.25 GET /api/v1/favorite/list 收藏列表](#225-get-apiv1favoritelist-收藏列表)
+    - [2.23 POST /api/v1/favorite/add 收藏游戏](#223-post-apiv1favoriteadd-收藏游戏)
+    - [2.24 DELETE /api/v1/favorite/remove 取消收藏](#224-delete-apiv1favoriteremove-取消收藏)
+    - [2.25 GET /api/v1/favorite/visit 访问收藏](#225-get-apiv1favoritevisit-访问收藏)
+    - [2.26 GET /api/v1/favorite/list 收藏列表](#226-get-apiv1favoritelist-收藏列表)
+  - [article 模块](#article-模块)
+    - [2.31 GET /api/v1/article/ 文章列表](#231-get-apiv1article-文章列表)
+    - [2.32 GET /api/v1/article/{id} 文章详情](#232-get-apiv1articleid-文章详情)
+    - [2.33 GET /api/v1/article/manage 个人文章管理](#233-get-apiv1articlemanage-个人文章管理)
+    - [2.34 POST /api/v1/article/add 发布文章](#234-post-apiv1articleadd-发布文章)
+    - [2.35 PUT /api/v1/article/edit 编辑文章](#235-put-apiv1articleedit-编辑文章)
+    - [2.36 DELETE /api/v1/article/delete 删除文章](#236-delete-apiv1articledelete-删除文章)
   - [search 模块](#search-模块)
-    - [2.26 GET /api/v1/search/ 搜索游戏](#226-get-apiv1search-搜索游戏)
+    - [2.27 GET /api/v1/search/ 搜索游戏](#227-get-apiv1search-搜索游戏)
   - [admin 模块](#admin-模块)
-    - [2.27 GET /api/admin/control/BrowseGal 浏览待审核游戏](#227-get-apiadmincontrolbrowsegal-浏览待审核游戏)
-    - [2.28 PUT /api/admin/control/UpdateStatus 更新审核状态](#228-put-apiadmincontrolupdatestatus-更新审核状态)
-    - [2.29 DELETE /api/admin/control/DeleteGal 管理员删除游戏](#229-delete-apiadmincontroldeletegal-管理员删除游戏)
+    - [2.28 GET /api/admin/control/BrowseGal 浏览待审核游戏](#228-get-apiadmincontrolbrowsegal-浏览待审核游戏)
+    - [2.29 PUT /api/admin/control/UpdateStatus 更新审核状态](#229-put-apiadmincontrolupdatestatus-更新审核状态)
+    - [2.30 DELETE /api/admin/control/DeleteGal 管理员删除游戏](#230-delete-apiadmincontroldeletegal-管理员删除游戏)
 - [3. 数据模型](#3-数据模型)
 - [4. 错误码一览](#4-错误码一览)
 - [5. 已知限制与注意事项](#5-已知限制与注意事项)
@@ -62,21 +70,22 @@
 | --- | --- |
 | Base URL | `/api/v1` |
 | 接口文档 | FastAPI 自动生成：`http://localhost:8000/docs`（Swagger UI） |
-| 路由注册 | `main.py` → `include_router(user_router)` / `include_router(email_router)` / `include_router(gal_router)` / `include_router(link_router)` / `include_router(comment_router)` / `include_router(favorite_router)` / `include_router(search_router)` / `include_router(control_router)`，无额外全局前缀 |
-| 响应格式 | 裸 JSON dict；列表接口使用 `response_model`：galgame=`GalList` / link=`LinkList` / comment=`CommentList` / favorite=`GalBaseList` / search=`GalList`，其余未声明 |
+| 路由注册 | `main.py` → `include_router(user_router)` / `include_router(email_router)` / `include_router(gal_router)` / `include_router(link_router)` / `include_router(comment_router)` / `include_router(favorite_router)` / `include_router(search_router)` / `include_router(article_router)` / `include_router(control_router)`，无额外全局前缀 |
+| 响应格式 | 裸 JSON dict；列表接口使用 `response_model`：galgame=`GalList` / link=`LinkList` / comment=`CommentList` / favorite=`GalBaseList` / search=`GalList` / article=`ArticleList` / `ArticleManageList`，其余未声明 |
 | CORS | 已开启 `allow_origins=["*"]` + `allow_credentials=True`（见[已知限制](#5-已知限制与注意事项)） |
 
-当前共 **28 个端点**，归属八个路由：
+当前共 **35 个端点**，归属九个路由：
 
 | 路由 | 前缀 | 端点 |
 | --- | --- | --- |
-| `api/v1/user.py` | `/api/v1/user` | login / register / update / delete / index |
-| `api/v1/email.py` | `/api/v1/email` | send |
-| `api/v1/galgame.py` | `/api/v1/galgame` | index / visit / add / delete / edit |
-| `api/v1/link.py` | `/api/v1/link` | get_list / get_list_by_user / add / review / delete |
-| `api/v1/comment.py` | `/api/v1/comment` | get_list / get_list_by_user / add / edit / delete |
-| `api/v1/favorite.py` | `/api/v1/favorite` | add / remove / visit / list |
-| `api/v1/search.py` | `/api/v1/search` | search |
+| `api/service/user.py` | `/api/v1/user` | login / register / update / delete / index |
+| `api/service/email.py` | `/api/v1/email` | send |
+| `api/service/galgame.py` | `/api/v1/galgame` | index / visit / rvisit / add / delete / edit |
+| `api/service/link.py` | `/api/v1/link` | get_list / get_list_by_user / add / review / delete |
+| `api/service/comment.py` | `/api/v1/comment` | get_list / get_list_by_user / add / edit / delete |
+| `api/service/favorite.py` | `/api/v1/favorite` | add / remove / visit / list |
+| `api/service/article.py` | `/api/v1/article` | index / visit / manage / add / edit / delete |
+| `api/service/search.py` | `/api/v1/search` | search |
 | `api/admin/control.py` | `/api/admin/control` | BrowseGal / UpdateStatus / DeleteGal |
 
 ### 1.2 鉴权机制
@@ -88,9 +97,11 @@
   - link：`POST /add`、`PUT /review`、`DELETE /delete`
   - comment：`POST /add`、`PUT /edit`、`DELETE /delete`
   - favorite：`POST /add`、`DELETE /remove`、`GET /list`
+  - article：`POST /add`、`PUT /edit`、`DELETE /delete`、`GET /manage`
   - admin control：`GET /BrowseGal`、`PUT /UpdateStatus`、`DELETE /DeleteGal`（需管理员身份，`verify_admin` 校验 JWT `is_admin` 字段）
   - `GET /api/v1/user/`：可选（不传 `id` 时用 token 定位自身）
   - `GET /api/v1/galgame/{id}`：可选（管理员可绕过 `status=False` 限制查看未审核游戏）
+  - `GET /api/v1/article/{id}`：可选（管理员可绕过 `status=False` 限制查看未公开文章）
 - 请求头携带：
 
 ```
@@ -106,7 +117,7 @@ Authorization: Bearer <access_token>
 - **数据来源**：`db: AsyncSession = Depends(get_db)` 注入异步会话，事务边界即请求边界（正常自动 commit，异常自动回滚）。
 - 业务错误统一抛 `HTTPException(status_code, detail)`，`detail` 为中文提示。
 - 图片/密码哈希等同步阻塞操作在 `update`、galgame 上传路径已用 `run_in_threadpool` 包裹（`login/register` 仍为同步调用，见[第 5 节](#5-已知限制与注意事项)）。
-- **缓存**：Redis 驱动（`config/cache.py`）。版本计数按业务域拆分：`gal_version` / `link_version` / `comment_version`（全局 `search_version` 保留向后兼容）；列表/详情缓存 key 内嵌对应域的版本号，该域数据变更后 `update_version(域KEY)` 使旧 key 失效。
+- **缓存**：Redis 驱动（`config/cache.py`）。版本计数按业务域拆分：`gal_version` / `link_version` / `comment_version` / `article_version`（全局 `search_version` 保留向后兼容）；列表/详情缓存 key 内嵌对应域的版本号，该域数据变更后 `update_version(域KEY)` 使旧 key 失效。
 
 ---
 
@@ -315,7 +326,24 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`422`（page/size 越界）。
 
-### 2.8 GET /api/v1/galgame/{id} 游戏详情
+### 2.8 GET /api/v1/galgame/rvisit 随机游戏
+
+- **鉴权**：无。
+- **请求参数**：无。
+- **处理流程**：
+  1. 查询 `Galgame.id` 的最大值与最小值。
+  2. 在 `[min_id, max_id]` 区间生成随机数，按 >= rand_id 且 `status == True` 的顺序取第一条。
+  3. 无公开游戏时返回 `404 暂无游戏`。
+- **成功 200**：
+```json
+{
+  "msg": "随即游戏id为{id}",
+  "id": 5
+}
+```
+- **说明**：id 存在空洞时可能多次随机到相同段，配合前端跳转到详情页。
+
+### 2.9 GET /api/v1/galgame/{id} 游戏详情
 
 - **鉴权**：可选（Bearer token，管理员可绕过 `status=False` 限制）。
 - **路径参数**：`id`（int，游戏 id）。
@@ -349,7 +377,7 @@ Authorization: Bearer <access_token>
 - **错误**：`404 未找到`、`403 当前未被公开`。
 - **说明**：响应字段 `update_at`、`platfrom` 为代码中的拼写（模型为 `updated_at` / `platform`），保留现状。
 
-### 2.9 POST /api/v1/galgame/add 发布游戏
+### 2.10 POST /api/v1/galgame/add 发布游戏
 
 - **鉴权**：Bearer token（必填，发布者为作者）。
 - **请求体** `AddGal`：
@@ -383,7 +411,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`409`（该游戏已存在）、`422`（三名称全空）、`500`（图片上传失败）。
 
-### 2.10 DELETE /api/v1/galgame/delete 删除游戏
+### 2.11 DELETE /api/v1/galgame/delete 删除游戏
 
 - **鉴权**：Bearer token（必填，仅作者可删）。
 - **查询参数**：`id`（int，游戏 id）。
@@ -402,7 +430,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`403`、`400`（该游戏存在关联链接，无法删除）。
 
-### 2.11 PUT /api/v1/galgame/edit 编辑游戏
+### 2.12 PUT /api/v1/galgame/edit 编辑游戏
 
 - **鉴权**：Bearer token（必填，仅作者可编辑）。
 - **查询参数**：`id`（int，游戏 id）。
@@ -433,7 +461,7 @@ Authorization: Bearer <access_token>
 
 ## link 模块
 
-### 2.12 GET /api/v1/link/{game_id} 链接列表
+### 2.13 GET /api/v1/link/{game_id} 链接列表
 
 - **鉴权**：无。
 - **路径参数**：`game_id`（int，游戏 id）。
@@ -478,7 +506,7 @@ Authorization: Bearer <access_token>
 - **错误**：`404 未找到该游戏`、`422`（page/size 越界）。
 - **说明**：响应项新增 `id`、`game_id` 字段——`game_id` 供按用户过滤列表跳转对应游戏/管理页使用。
 
-### 2.13 POST /api/v1/link/add 添加链接
+### 2.14 POST /api/v1/link/add 添加链接
 
 - **鉴权**：Bearer token（必填，发布者为作者）。
 - **查询参数**：`game_id`（int，目标游戏 id）。
@@ -506,7 +534,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`404 未找到该游戏`、`422`（url 为空 / 越界）。
 
-### 2.14 PUT /api/v1/link/review 编辑链接
+### 2.15 PUT /api/v1/link/review 编辑链接
 
 - **鉴权**：Bearer token（必填，仅作者可编辑）。
 - **查询参数**：`link_id`（int，链接 id）。
@@ -532,7 +560,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`403`。
 
-### 2.15 DELETE /api/v1/link/delete 删除链接
+### 2.16 DELETE /api/v1/link/delete 删除链接
 
 - **鉴权**：Bearer token（必填，仅作者可删）。
 - **查询参数**：`link_id`（int，链接 id）。
@@ -550,7 +578,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`403`、`400`。
 
-### 2.20 GET /api/v1/link/user/{user_id} 按用户获取链接列表
+### 2.21 GET /api/v1/link/user/{user_id} 按用户获取链接列表
 
 - **鉴权**：无。
 - **路径参数**：`user_id`（int，用户 id）。
@@ -566,7 +594,7 @@ Authorization: Bearer <access_token>
   2. 过滤条件集中管理：`Link.author_id == user_id`（**不做公开状态过滤**——作者可看到自己全部链接），列表与总数共用同一组 WHERE。
   3. `join(Link.author)` 联表取作者用户名/头像，按 `updated_at` 倒序分页。
   4. 结果写入缓存（TTL 5 分钟）。
-- **成功 200**（`response_model=LinkList`，响应结构同 [2.12](#212-get-apiv1linkgame_id-链接列表)，`item.game_id` 为所属游戏 id）：
+- **成功 200**（`response_model=LinkList`，响应结构同 [2.13](#213-get-apiv1linkgame_id-链接列表)，`item.game_id` 为所属游戏 id）：
 ```json
 {
   "total": 1,
@@ -599,7 +627,7 @@ Authorization: Bearer <access_token>
 
 ## comment 模块
 
-### 2.16 GET /api/v1/comment/{game_id} 评论列表
+### 2.17 GET /api/v1/comment/{game_id} 评论列表
 
 - **鉴权**：无。
 - **路径参数**：`game_id`（int，游戏 id）。
@@ -636,7 +664,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`404 未找到该游戏`、`422`（page/size 越界）。
 
-### 2.17 POST /api/v1/comment/add 发表评论
+### 2.18 POST /api/v1/comment/add 发表评论
 
 - **鉴权**：Bearer token（必填）。
 - **查询参数**：`game_id`（int，目标游戏 id）。
@@ -659,7 +687,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`404 未找到该游戏`、`422`（content 为空 / 越界）。
 
-### 2.18 PUT /api/v1/comment/edit 编辑评论
+### 2.19 PUT /api/v1/comment/edit 编辑评论
 
 - **鉴权**：Bearer token（必填，仅作者可编辑）。
 - **查询参数**：`comment_id`（int，评论 id）。
@@ -683,7 +711,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`404 没有该评论`。
 
-### 2.19 DELETE /api/v1/comment/delete 删除评论
+### 2.20 DELETE /api/v1/comment/delete 删除评论
 
 - **鉴权**：Bearer token（必填，仅作者可删）。
 - **查询参数**：`comment_id`（int，评论 id）。
@@ -701,7 +729,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`403`、`400`。
 
-### 2.21 GET /api/v1/comment/user/{user_id} 按用户获取评论列表
+### 2.22 GET /api/v1/comment/user/{user_id} 按用户获取评论列表
 
 - **鉴权**：无。
 - **路径参数**：`user_id`（int，用户 id）。
@@ -717,7 +745,7 @@ Authorization: Bearer <access_token>
   2. 过滤条件集中管理：`Comment.author_id == user_id`，列表与总数共用同一组 WHERE。
   3. `join(Comment.author)` 联表取作者用户名/头像，按 `updated_at` 倒序分页。
   4. 结果写入缓存（TTL 5 分钟）。
-- **成功 200**（`response_model=CommentList`，响应结构同 [2.16](#216-get-apiv1commentgame_id-评论列表)）：
+- **成功 200**（`response_model=CommentList`，响应结构同 [2.17](#217-get-apiv1commentgame_id-评论列表)）：
 ```json
 {
   "total": 1,
@@ -743,7 +771,7 @@ Authorization: Bearer <access_token>
 
 ## favorite 模块
 
-### 2.22 POST /api/v1/favorite/add 收藏游戏
+### 2.23 POST /api/v1/favorite/add 收藏游戏
 
 - **鉴权**：Bearer token（必填）。
 - **查询参数**：`gal_id`（int，游戏 id）。
@@ -762,7 +790,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`404 游戏不存在`、`409 已收藏`。
 
-### 2.23 DELETE /api/v1/favorite/remove 取消收藏
+### 2.24 DELETE /api/v1/favorite/remove 取消收藏
 
 - **鉴权**：Bearer token（必填）。
 - **查询参数**：`gal_id`（int，游戏 id）。
@@ -780,7 +808,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`401`、`404 收藏不存在`。
 
-### 2.24 GET /api/v1/favorite/visit 访问收藏
+### 2.25 GET /api/v1/favorite/visit 访问收藏
 
 - **鉴权**：无。
 - **查询参数**：`id`（int，收藏记录 id）。
@@ -794,7 +822,7 @@ Authorization: Bearer <access_token>
 ```
 - **错误**：`404 收藏不存在`。
 
-### 2.25 GET /api/v1/favorite/list 收藏列表
+### 2.26 GET /api/v1/favorite/list 收藏列表
 
 - **鉴权**：Bearer token（必填，返回当前用户的收藏）。
 - **查询参数**：
@@ -826,9 +854,162 @@ Authorization: Bearer <access_token>
 
 ---
 
+## article 模块
+
+路由文件：`api/service/article.py`，前缀 `/api/v1/article`，tag `"article"`。文章发布后自动公开（`status=True`），审核流程与 galgame 不同。详情页缓存 30 分钟，浏览量使用独立的 `ArticleViewCounter`（Redis HASH `article_views`，定时同步到 `Article.views`）。
+
+### 2.31 GET /api/v1/article/ 文章列表
+
+- **鉴权**：无。
+- **查询参数**：
+
+| 参数 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| page | int | ❌ | 页码，默认 1，`ge=1` |
+| size | int | ❌ | 每页条数，默认 10，1–50 |
+| category | str? | ❌ | 分类筛选（LIKE 匹配，传入 `评测` 可匹配 `评测,攻略` 等多分类） |
+
+- **处理流程**：
+  1. 读取缓存（version key `article_version`），命中直接返回。
+  2. 查询 `Article.status == True`（仅公开文章），`category` 可选 LIKE 过滤。
+  3. 子查询统计评论数（`Comment.receive_type == 0`，即 `ReceiveEnum.article`）。
+  4. 分页、时间倒序，写入缓存（300s）。
+- **成功 200**（`response_model=ArticleList`）：
+```json
+{
+  "total": 3,
+  "items": [
+    {
+      "id": 1,
+      "title": "示例文章",
+      "cover": "https://res.cloudinary.com/.../cover.webp",
+      "category": "评测",
+      "comcnt": 5,
+      "views": 42,
+      "time": "2026-09-20T10:00:00"
+    }
+  ]
+}
+```
+
+### 2.32 GET /api/v1/article/{id} 文章详情
+
+- **鉴权**：可选（Bearer token，管理员可查看未公开文章）。
+- **路径参数**：`id`（int，文章 id）。
+- **处理流程**：
+  1. 独立于缓存的浏览量计数：`ArticleViewCounter.incr(id)`。
+  2. 读取缓存（30min），命中返回。
+  3. 联表查询 `Article + User.username/avatar`。
+  4. 管理员可绕过 `status=False` 查看未公开文章；非管理员遇到未公开返回 `403`。
+  5. 统计关联评论数（`Comment.receive_type == 0 AND receive_id == id`）。
+  6. `category` 从逗号分隔字符串转为 List[str]。
+- **成功 200**（`response_model=ArticleDetail`）：
+```json
+{
+  "id": 1,
+  "title": "示例文章",
+  "content": "# Markdown 内容",
+  "cover": "https://...",
+  "tag": ["游戏", "评测"],
+  "category": ["评测", "攻略"],
+  "images": ["https://..."],
+  "views": 42,
+  "author_id": 1,
+  "author_name": "zhangsan",
+  "author_avatar": null,
+  "comment_count": 3,
+  "created_at": "2026-09-20T10:00:00",
+  "updated_at": "2026-09-20T12:00:00"
+}
+```
+- **错误**：`404 未找到`、`403 当前未被公开`。
+
+### 2.33 GET /api/v1/article/manage 个人文章管理
+
+- **鉴权**：Bearer token（必填，仅返回当前用户的文章）。
+- **查询参数**：
+
+| 参数 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| page | int | ❌ | 页码，默认 1 |
+| size | int | ❌ | 每页条数，默认 10，1–50 |
+
+- **处理流程**：`verify_login` 解析当前用户 → 按 `author_id` 过滤 → 分页返回（仅 id/title/cover）。
+- **成功 200**（`response_model=ArticleManageList`）：
+```json
+{
+  "total": 5,
+  "items": [
+    {
+      "id": 1,
+      "title": "示例文章",
+      "cover": "https://..."
+    }
+  ]
+}
+```
+
+### 2.34 POST /api/v1/article/add 发布文章
+
+- **鉴权**：Bearer token（必填）。
+- **请求体** `ArticlePublish`：
+
+| 字段 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| title | str | ✅ | 文章标题 |
+| content | str | ✅ | Markdown 正文 |
+| cover | str? | ❌ | base64 图片 → 上传 Cloudinary（`fishmo_article_cover`）；不传则用 `images[0]` 或默认封面 |
+| tag | List[str]? | ❌ | 标签列表（JSON） |
+| category | List[str]? | ❌ | 分类列表，自动转逗号分隔入库（支持 `["评测","攻略"]` → `"评测,攻略"`） |
+| images | List[str]? | ❌ | 插图 base64 列表 → 上传 Cloudinary（`fishmo_gal_images`） |
+
+- **处理流程**：
+  1. `verify_login` 解析用户 ID。
+  2. 封面上传（base64 → WebP → Cloudinary），失败 422。
+  3. 插图批量上传，失败 422。
+  4. 无封面时使用 `Default_cover`。
+  5. 写入 `Article` 表（`status=True` 即公开），commit。
+  6. 缓存失效：`delete_cache_pattern("Article:*")` + `update_version(ARTICLE_VERSION_KEY)`。
+- **成功 200**：
+```json
+{ "msg": "添加成功", "id": 1 }
+```
+- **错误**：`401`、`422`（封面上传失败 / 图片上传失败）。
+
+### 2.35 PUT /api/v1/article/edit 编辑文章
+
+- **鉴权**：Bearer token（必填）。
+- **查询参数**：`id`（int，文章 id）。
+- **请求体**：同 `ArticlePublish`（全部可选，传哪个改哪个）。
+- **处理流程**：
+  1. `verify_login` → 按 `Article.id == id AND author_id == user_id` 查（不存在 → `403`）。
+  2. 封面/插图：已托管 URL 直接复用，base64 新图走 Cloudinary 上传。
+  3. commit → 缓存失效（`Article:*` + `Article_visit:*id={id}` + `update_version`）。
+- **成功 200**：
+```json
+{ "msg": "编辑成功", "id": 1, "user_id": 1 }
+```
+- **错误**：`401`、`403`（非作者）。
+
+### 2.36 DELETE /api/v1/article/delete 删除文章
+
+- **鉴权**：Bearer token（必填）。
+- **查询参数**：`id`（int，文章 id）。
+- **处理流程**：
+  1. `verify_login` → 按 `Article.id == id AND author_id == user_id` 查（不存在 → `403`）。
+  2. `db.delete` → commit；`IntegrityError` 捕获 → `400`（有关联数据）。
+  3. 缓存失效。
+- **成功 200**：
+```json
+{ "msg": "删除成功", "id": 1, "user_id": 1 }
+```
+- **错误**：`401`、`403`、`400`。
+
+---
+
 ## search 模块
 
-### 2.26 GET /api/v1/search/ 搜索游戏
+### 2.27 GET /api/v1/search/ 搜索游戏
 
 - **鉴权**：无。
 - **查询参数**：
@@ -875,7 +1056,7 @@ Authorization: Bearer <access_token>
 
 > 管理员专用路由，所有端点需 `verify_admin` 校验 JWT 中的 `is_admin` 字段。
 
-### 2.27 GET /api/admin/control/BrowseGal 浏览待审核游戏
+### 2.28 GET /api/admin/control/BrowseGal 浏览待审核游戏
 
 - **鉴权**：Bearer token（必填，管理员）。
 - **查询参数**：
@@ -900,7 +1081,7 @@ Authorization: Bearer <access_token>
 - **错误**：`401`、`403 无权限访问`。
 - **说明**：当前仅返回 ID 列表，前端需逐个调用 `/api/v1/galgame/{id}` 补充详情（N+1 问题，待优化）。
 
-### 2.28 PUT /api/admin/control/UpdateStatus 更新审核状态
+### 2.29 PUT /api/admin/control/UpdateStatus 更新审核状态
 
 - **鉴权**：Bearer token（必填，管理员）。
 - **查询参数**：
@@ -925,7 +1106,7 @@ Authorization: Bearer <access_token>
 - **错误**：`401`、`403`、`500`（更新状态时发生错误）。
 - **已知问题**：不校验 `gal_id` 是否存在，不存在的 id 也返回成功消息并触发缓存失效。
 
-### 2.29 DELETE /api/admin/control/DeleteGal 管理员删除游戏
+### 2.30 DELETE /api/admin/control/DeleteGal 管理员删除游戏
 
 - **鉴权**：Bearer token（必填，管理员）。
 - **查询参数**：`gal_id`（int，游戏 id）。
@@ -1054,6 +1235,24 @@ Authorization: Bearer <access_token>
 
 > 关系：`author` / `galgame` 多对一均为 `lazy="selectin"`；`Galgame.links` / `User.links` 集合侧 `lazy="raise"`。
 
+### 数据库表 `article`（model/article.py）
+
+| 字段 | 类型 | 约束 |
+| --- | --- | --- |
+| id | Integer | 主键自增 |
+| title | String(255) | 文章标题（非空） |
+| content | Text | Markdown 正文 |
+| author_id | Integer | 外键 `user.id`，`ondelete=RESTRICT` |
+| category | String(255) | 逗号分隔的分类（如 `"评测,攻略"`），详情接口自动转 List[str] |
+| tag | JSON? | 标签列表 |
+| status | Boolean | 默认 False（文章发布时设为 True，保留字段与 galgame 审核流程统一） |
+| images | JSON? | 插图 URL 列表 |
+| cover | String(255) | 封面 URL |
+| views | Integer | 默认 0（Redis 异步累积后定时落库，`ArticleViewCounter`） |
+| created_at / updated_at | DateTime | 自动维护 |
+
+> 关系：`author` 多对一 `lazy="selectin"`；`User.articles` 集合侧 `lazy="raise"`。评论/收藏通过多态 `receive_type=0`（`ReceiveEnum.article`）关联，ORM 层面无直接关系。
+
 ### 数据库表 `comment`（model/comment.py）
 
 | 字段 | 类型 | 约束 |
@@ -1062,7 +1261,7 @@ Authorization: Bearer <access_token>
 | content | Text? | 评论内容 |
 | author_id | Integer | 外键 `user.id`，`ondelete=RESTRICT` |
 | receive_id | Integer | 接收对象 id（裸 Integer 多态：`receive_type=galgame` 时存游戏 id，不做外键，兼容未来 article 等类型） |
-| receive_type | Integer | 接收类型（`ReceiveEnum.galgame=1`） |
+| receive_type | Integer | 接收类型：`ReceiveEnum.article=0` / `ReceiveEnum.galgame=1` |
 | created_at / updated_at | DateTime | 自动维护 |
 
 > 关系：`author` 多对一 `lazy="selectin"`；`User.comments` 集合侧 `lazy="raise"`。
@@ -1086,8 +1285,8 @@ Authorization: Bearer <access_token>
 | 状态码 | 场景 | 说明 |
 | --- | --- | --- |
 | 401 | 用户名或密码不正确 / 未提供凭证 / token 无效 | 鉴权失败统一 401 |
-| 400 | 验证码不正确或已过期 / 参数错误 / 用户存在关联作品无法删除 / 该游戏存在关联链接无法删除 / 该游戏存在关联数据无法删除（admin）/ 无法删除（link/comment 删除兜底）/ update 唯一索引兜底 | 业务校验失败 |
-| 403 | galgame/link/comment 非发布者 / 详情未公开 / admin 无权限 | 无权限 / 资源不可见 |
+| 400 | 验证码不正确或已过期 / 参数错误 / 用户存在关联作品无法删除 / 该游戏存在关联链接无法删除 / 该游戏存在关联数据无法删除（admin）/ 该文章存在关联数据无法删除 / 无法删除（link/comment 删除兜底）/ update 唯一索引兜底 | 业务校验失败 |
+| 403 | galgame/article/link/comment 非发布者 / 详情未公开 / admin 无权限 | 无权限 / 资源不可见 |
 | 404 | 用户不存在 / 游戏未找到 / 游戏不存在（favorite）/ 收藏不存在 / 没有该评论（comment edit） | 按 id/token 定位不到 |
 | 409 | 用户名或邮箱已存在（register/update）/ 该游戏已存在（add）/ 已收藏（favorite add） | 唯一性冲突 |
 | 422 | 头像上传失败 / 封面图上传失败 / 图片上传失败 / Pydantic 校验失败（page、size 越界、三名称全空、url/content 越界） | 请求不合法 |

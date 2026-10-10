@@ -5,7 +5,7 @@ import { useGalgameList, deleteGalgame } from '~/composables/useGalgame'
 import { useAuthStore } from '~/stores/auth'
 import { getErrDetail } from '~/utils/request'
 
-/** 我的游戏：分页管理列表（供个人主页「游戏」tab 与 /manage 复用）。 */
+/** 我的游戏：小型卡片网格（供个人主页「游戏」tab 与 /manage 复用）。 */
 const auth = useAuthStore()
 const SIZE = 20
 const page = ref(1)
@@ -46,26 +46,26 @@ async function handleDelete(item: GalItem) {
     </ClientOnly>
 
     <template v-else>
-      <ul class="m-list">
-        <li v-for="item in data.items" :key="item.id" class="m-item m-item-game">
-          <el-image :src="item.cover" class="m-cover" fit="cover" lazy />
-          <div class="m-main">
-            <div class="m-title">
-              <NuxtLink :to="`/galgame/${item.id}`" class="m-link">{{ item.name }}</NuxtLink>
+      <div class="card-grid">
+        <div v-for="item in data.items" :key="item.id" class="mini-card">
+          <NuxtLink :to="`/galgame/${item.id}`" class="card-link">
+            <div class="card-cover">
+              <el-image :src="item.cover" fit="cover" class="cover-img" lazy>
+                <template #error>
+                  <div class="cover-placeholder">无封面</div>
+                </template>
+              </el-image>
             </div>
-            <div class="m-meta">
-              <el-tag size="small" type="info" effect="plain">浏览 {{ item.views }}</el-tag>
-              <el-tag v-if="item.author" size="small" effect="plain">{{ item.author }}</el-tag>
-            </div>
-          </div>
-          <div class="m-actions">
-            <el-button size="small" type="primary" plain @click="navigateTo(`/manage/${item.id}`)">
+            <div class="card-name">{{ item.name }}</div>
+          </NuxtLink>
+          <div class="card-actions">
+            <el-button size="small" text @click="navigateTo(`/manage/${item.id}`)">
               编辑
             </el-button>
-            <el-button size="small" type="danger" plain @click="handleDelete(item)">删除</el-button>
+            <el-button size="small" text type="danger" @click="handleDelete(item)">删除</el-button>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
       <div class="pagination-wrap">
         <el-pagination
           layout="prev, pager, next, total"
@@ -80,63 +80,87 @@ async function handleDelete(item: GalItem) {
 </template>
 
 <style scoped>
-.m-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
 }
-.m-item {
+
+.mini-card {
+  border: 1px solid var(--fish-border);
+  border-radius: var(--fish-radius-sm);
+  overflow: hidden;
+  background: transparent;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mini-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--fish-accent-border);
+  box-shadow: var(--fish-shadow-hover);
+}
+
+.card-link {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-cover {
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: transparent;
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mini-card:hover .cover-img {
+  transform: scale(1.04);
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--fish-border);
-  border-radius: 10px;
-  margin-bottom: 8px;
-  background: var(--fish-bg-2);
-  transition: border-color 0.2s, transform 0.2s;
+  justify-content: center;
+  color: var(--fish-text-3);
+  font-size: var(--fish-text-sm);
+  background: transparent;
 }
-.m-item:hover {
-  border-color: var(--fish-accent-border);
-  transform: translateY(-1px);
-}
-.m-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-.m-main {
-  flex: 1;
-  min-width: 0;
-}
-.m-title {
-  font-size: 14px;
+
+.card-name {
+  padding: 8px 10px;
+  font-size: var(--fish-text-sm);
   font-weight: 600;
   color: var(--fish-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
+  transition: color 0.2s;
 }
-.m-link {
+
+.card-link:hover .card-name {
   color: var(--fish-accent);
-  text-decoration: none;
 }
-.m-link:hover {
-  text-decoration: underline;
-}
-.m-meta {
+
+.card-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 4px;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px 8px;
 }
-.m-actions {
-  flex-shrink: 0;
-  display: flex;
-  gap: 6px;
-}
+
 .pagination-wrap {
   display: flex;
   justify-content: center;
@@ -144,12 +168,9 @@ async function handleDelete(item: GalItem) {
 }
 
 @media (max-width: 560px) {
-  .m-item {
-    flex-wrap: wrap;
-  }
-  .m-actions {
-    width: 100%;
-    justify-content: flex-end;
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 </style>

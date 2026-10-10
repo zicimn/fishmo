@@ -1,9 +1,10 @@
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_,func
 from sqlalchemy.exc import IntegrityError
 from config.db import get_db
 from schemas.user import LoginRequest, Account, AccountUpdate
@@ -15,6 +16,8 @@ from utils.email import verify_email_code
 from utils.verify_user import verify_login
 from config.cache import update_version, GAL_VERSION_KEY, LINK_VERSION_KEY, COMMENT_VERSION_KEY
 from utils.webp import upload_image_to_cloudinary
+from model.galgame import Galgame
+from model.article import Article
 
 # auto_error=False：缺 token 时走 verify_login 统一返回 401，与无效 token 语义一致
 security = HTTPBearer(auto_error=False)
@@ -34,8 +37,15 @@ async def login(
     if not user or not pwd_context.verify(data.password, user.password_hash):
         raise HTTPException(status_code = 401, detail = "用户名或密码不正确")
 
+    now = datetime.now(timezone.utc)
     token = jwt.encode(
-        {"sub": str(user.id), "username": user.username, "is_admin":user.is_admin},
+        {
+            "sub": str(user.id),
+            "username": user.username,
+            "is_admin": user.is_admin,
+            "iat": now,
+            "exp": now + timedelta(days=7),
+        },
         SECRET_KEY,
         algorithm=ALGORITHM
     )
@@ -206,12 +216,29 @@ async def index(
     if not user:
         raise HTTPException(status_code=404,detail="用户不存在")
 
+    
+    gal_stmt = (
+        select(func.count(Galgame.id))
+        .where(Galgame.author_id == id)
+        .scalar_subquery()
+    )
+    article_stmt = (
+        select(func.count(Article.id))
+        .where(Article.author_id == id)
+        .scalar_subquery()
+    )
+    query = await db.execute(select(gal_stmt, article_stmt))
+    gal_cnt, article_cnt = query.fetchone() or (0, 0)
+
+
     return{
         "msg": "用户信息",
         "username" :user.username,
         "avatar" :user.avatar,
         "bio" :user.bio,
-        "email" : user.email
+        "email" : user.email,
+        "gal_cnt":gal_cnt,
+        "article_cnt":article_cnt
     }
     
 

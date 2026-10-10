@@ -1,7 +1,10 @@
 from sqlalchemy import update, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import redis_client
-from model import Galgame
+from model import Galgame, Article
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ViewCounter:
@@ -47,16 +50,65 @@ class ViewCounter:
                 .values(views=table.c.views + bindparam('delta'))
             )
             await db.execute(
-                stmt, 
+                stmt,
                 params,
                 execution_options={"synchronize_session": False}
                 )
             await db.commit()
         except Exception as e:
-            print(f"同步数据库失败: {e}")
+            logger.exception("同步游戏浏览量到数据库失败")
             # 失败不删除 Redis，保留增量等待下次重试
             return
 
         await redis_client.delete(cls.HASH_KEY)
-        # 修复：updates 变量不存在，应使用 params
-        print(f"成功同步 {len(params)} 篇文章的浏览量到数据库")
+        logger.info("成功同步 %d 个游戏的浏览量到数据库", len(params))
+
+
+class ArticleViewCounter:
+    HASH_KEY = "article_views"
+
+    @classmethod
+    async def incr(cls, article_id: int) -> int:
+        return await redis_client.hincrby(cls.HASH_KEY, str(article_id), 1)
+
+    @classmethod
+    async def get(cls, article_id: int) -> int:
+        val = await redis_client.hget(cls.HASH_KEY, str(article_id))
+        return int(val) if val else 0
+
+    @classmethod
+    async def get_total(cls, article_id: int, db_views: int) -> int:
+        delta = await cls.get(article_id)
+        return db_views + delta
+
+    @classmethod
+    async def sync_to_db(cls, db: AsyncSession):
+        all_delta = await redis_client.hgetall(cls.HASH_KEY)
+        if not all_delta:
+            return
+
+        params = []
+        for article_id_bytes, delta_bytes in all_delta.items():
+            article_id = int(article_id_bytes)
+            delta = int(delta_bytes)
+            params.append({"article_id": article_id, "delta": delta})
+
+        try:
+            table = Article.__table__
+            stmt = (
+                update(table)
+                .where(table.c.id == bindparam("article_id"))
+                .values(views=table.c.views + bindparam("delta"))
+            )
+            await db.execute(
+                stmt,
+                params,
+                execution_options={"synchronize_session": False},
+            )
+            await db.commit()
+        except Exception as e:
+            logger.exception("同步文章浏览量到数据库失败")
+            return
+
+        await redis_client.delete(cls.HASH_KEY)
+        logger.info("成功同步 %d 篇文章的浏览量到数据库", len(params))

@@ -5,6 +5,7 @@ from .link import router as link_router
 from .comment import router as comment_router
 from .favorite import router as favorite_router
 from .search import router as search_router
+from .article import router as article_router
 __all__ = [
     "user_router",
     "email_router",
@@ -13,4 +14,5 @@ __all__ = [
     "comment_router",
     "favorite_router",
     "search_router",
+    "article_router",
 ]

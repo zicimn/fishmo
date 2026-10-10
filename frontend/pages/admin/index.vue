@@ -222,7 +222,10 @@ onMounted(() => fetchPendingGames())
 
       <el-skeleton v-if="loading && !pendingList.length" :rows="5" animated />
 
-      <el-empty v-else-if="!pendingList.length" description="暂无待审核游戏" />
+      <div v-else-if="!pendingList.length" class="admin-empty">
+            <img src="/status/1.png" alt="无待审核" class="empty-404" />
+            <p class="empty-text">暂无待审核游戏</p>
+          </div>
 
       <div v-else class="review-list">
         <div
@@ -541,5 +544,26 @@ onMounted(() => fetchPendingGames())
   .stat-cards {
     grid-template-columns: 1fr;
   }
+}
+
+.admin-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--fish-space-md);
+  padding: var(--fish-space-2xl) var(--fish-space-lg);
+}
+
+.admin-empty .empty-404 {
+  width: 260px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+
+.admin-empty .empty-text {
+  margin: 0;
+  font-size: var(--fish-text-lg);
+  color: var(--fish-text-3);
 }
 </style>

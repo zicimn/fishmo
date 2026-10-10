@@ -47,6 +47,7 @@ defineProps<{ item: GalItem }>()
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
     border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  background: transparent !important;
 }
 
 .game-card:hover {
@@ -68,7 +69,7 @@ defineProps<{ item: GalItem }>()
   position: relative;
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  background: var(--fish-bg-2);
+  background: transparent;
 }
 
 .cover-img {

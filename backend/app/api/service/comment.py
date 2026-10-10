@@ -13,6 +13,7 @@ from utils.verify_user import verify_login
 from model.enums import ReceiveEnum
 from model.user import User
 from model.galgame import Galgame
+from model.article import Article
 from model.comment import Comment
 from schemas.comment import CommentItems, CommentItem, CommentList, AddComment, EditComment
 from schemas.user import UserInfo
@@ -83,31 +84,35 @@ async def get_list_by_user(
     return data
 
 
-@router.get("/{game_id}", response_model=CommentList)
+@router.get("/{target_id}", response_model=CommentList)
 async def get_list(
-    game_id: int,
+    target_id: int,
+    type: str = Query("galgame", description="评论目标类型：galgame（默认）或 article"),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db)
 ):
+    # 根据 type 确定 receive_type 和校验目标存在
+    if type == "article":
+        receive_type_val = int(ReceiveEnum.article)
+        existing = await db.get(Article, target_id)
+    else:
+        receive_type_val = int(ReceiveEnum.galgame)
+        existing = await db.get(Galgame, target_id)
+
+    if not existing:
+        raise HTTPException(status_code=404, detail="未找到该目标")
+
     version = await get_search_version(COMMENT_VERSION_KEY)
-    cache_key = get_cache_key("comments", game_id=game_id, page=page, size=size, version=version)
+    cache_key = get_cache_key("comments", receive_id=target_id, type=type, page=page, size=size, version=version)
     cache_data = await get_from_cache(cache_key)
 
     if cache_data:
         return cache_data
 
-    # 先校验游戏存在，避免对不存在的游戏返回空列表
-    # db.get() 优先走 identity map，纯主键查询更高效
-    existing = await db.get(Galgame, game_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="未找到该游戏")
-
     skip = (page - 1) * size
 
-    # 过滤条件集中管理：列表查询与总数统计共用同一组 WHERE，保证两者口径一致。
-    # receive_id 存游戏 id，与 add 时的写入语义保持一致，避免跨游戏串数据。
-    filters = [Comment.receive_id == game_id, Comment.receive_type == int(ReceiveEnum.galgame)]
+    filters = [Comment.receive_id == target_id, Comment.receive_type == receive_type_val]
 
     query = await db.execute(
         select(Comment, User.username, User.avatar)
@@ -153,32 +158,38 @@ async def get_list(
 
 @router.post("/add")
 async def add(
-    game_id: int,
-    data: AddComment,
+    game_id: int = Query(..., description="目标 id（游戏或文章 id，结合 type 使用）"),
+    type: str = Query("galgame", description="目标类型：galgame（默认）或 article"),
+    data: AddComment = ...,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: AsyncSession = Depends(get_db)
 ):
     user_id = verify_login(credentials=credentials)
 
-    # 无条件校验游戏存在，不与详情视图缓存命中耦合
-    # db.get() 优先走 identity map，纯主键查询更高效
-    game = await db.get(Galgame, game_id)
-    if not game:
-        raise HTTPException(status_code=404, detail="未找到该游戏")
+    # 根据 type 确定 receive_type 和校验目标存在
+    if type == "article":
+        receive_type_val = int(ReceiveEnum.article)
+        target = await db.get(Article, game_id)
+    else:
+        receive_type_val = int(ReceiveEnum.galgame)
+        target = await db.get(Galgame, game_id)
+
+    if not target:
+        raise HTTPException(status_code=404, detail="未找到该目标")
 
     new_comment = Comment(
         content=data.content,
         author_id=user_id,
         receive_id=game_id,
-        receive_type=int(ReceiveEnum.galgame)
+        receive_type=receive_type_val
     )
 
     db.add(new_comment)
     await db.commit()
     await db.refresh(new_comment)
 
-    # 新增后版本号 +1 + 主动清理该游戏下的评论列表 key（pattern 与 get_cache_key 生成的 key 匹配）
-    await delete_cache_pattern(f"comments:*game_id={game_id}")
+    # 新增后版本号 +1 + 主动清理该目标下的评论列表 key
+    await delete_cache_pattern(f"comments:*receive_id={game_id}*")
     await delete_cache_pattern("comments_user:*")
     await update_version(COMMENT_VERSION_KEY)
 

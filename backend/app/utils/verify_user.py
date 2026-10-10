@@ -1,10 +1,9 @@
 from typing import Optional
 from jose import jwt, JWTError
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials
 from config import ALGORITHM, SECRET_KEY
 from fastapi import HTTPException
 
-security = HTTPBearer()  # 自动去掉 header
 
 def verify_login(credentials: Optional[HTTPAuthorizationCredentials]) -> int:
     if not credentials:
@@ -20,7 +19,7 @@ def verify_login(credentials: Optional[HTTPAuthorizationCredentials]) -> int:
 
 def verify_admin(credentials: Optional[HTTPAuthorizationCredentials]) -> bool:
     if not credentials:
-        raise HTTPException(status_code=401, detail="未提供凭证")
+        return False
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -29,4 +28,4 @@ def verify_admin(credentials: Optional[HTTPAuthorizationCredentials]) -> bool:
             return False
         return True
     except JWTError:
-        raise HTTPException(401, "token无效")
+        return False

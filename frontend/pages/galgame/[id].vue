@@ -130,16 +130,11 @@ onMounted(() => {
 <template>
   <div class="detail-page">
     <el-skeleton v-if="pending" :rows="6" animated />
-    <el-result
-      v-else-if="error"
-      icon="error"
-      title="加载失败"
-      sub-title="详情接口可能未返回（后端未跑通或游戏不存在）"
-    >
-      <template #extra>
-        <el-button @click="refresh">重试</el-button>
-      </template>
-    </el-result>
+    <div v-else-if="error" class="empty-img">
+      <img src="/status/1.png" alt="加载失败" />
+      <p>加载失败，请稍后重试</p>
+      <el-button size="small" @click="refresh">重试</el-button>
+    </div>
 
     <template v-else-if="game">
       <!-- ===== 影院式 Hero：大封面背景 + 前景信息，主视觉为大图而非大按钮 ===== -->
@@ -733,5 +728,23 @@ onMounted(() => {
   .gallery {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

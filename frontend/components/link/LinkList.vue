@@ -15,16 +15,15 @@ defineExpose({ refresh })
     <h3 class="section-title">下载链接（{{ data?.total ?? 0 }}）</h3>
 
     <el-skeleton v-if="pending" :rows="3" animated />
-    <el-alert
-      v-else-if="error"
-      title="链接加载失败，请稍后重试"
-      type="error"
-      :closable="false"
-      show-icon
-    />
+    <div v-else-if="error" class="empty-img">
+      <img src="/status/1.png" alt="加载失败" />
+      <p>链接加载失败，请稍后重试</p>
+    </div>
     <ClientOnly v-else-if="!data?.items?.length">
-      <!-- EP el-empty 内置 SVG 的 el-id 在 SSR/客户端各自计数，直接 SSR 会水合不一致，故空态插图仅客户端渲染 -->
-      <el-empty description="暂无下载链接" :image-size="80" />
+      <div class="empty-img">
+        <img src="/status/2.png" alt="暂无链接" />
+        <p>暂无链接</p>
+      </div>
     </ClientOnly>
     <ul v-else class="link-list">
       <li v-for="(entry, idx) in data.items" :key="idx" class="link-item">
@@ -138,5 +137,23 @@ html.dark .link-item:hover {
 .name {
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

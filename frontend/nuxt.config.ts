@@ -62,7 +62,7 @@ export default defineNuxtConfig({
       script: [
         {
           innerHTML:
-            "(function(){try{var m=localStorage.getItem('fishmo-color-mode');if(m!=='light'){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}})()",
+            "(function(){document.documentElement.classList.add('dark')})()",
         },
       ],
       // 字体：Google Fonts（运行时浏览器加载，非构建期）；国内网络不可达时由 theme.css 的系统字体栈兜底

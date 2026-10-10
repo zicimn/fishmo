@@ -36,7 +36,10 @@ async function handleRemove(item: { id: number; name: string }) {
   <div class="my-favorites">
     <el-skeleton v-if="pending && !data?.items?.length" :rows="4" animated />
     <ClientOnly v-else-if="!data?.items?.length">
-      <el-empty description="还没有收藏任何游戏" :image-size="90" />
+      <div class="empty-img">
+          <img src="/status/2.png" alt="暂无收藏" />
+          <p>还没有收藏任何游戏</p>
+        </div>
     </ClientOnly>
 
     <template v-else>
@@ -213,5 +216,23 @@ async function handleRemove(item: { id: number; name: string }) {
     grid-template-columns: repeat(3, 1fr);
     gap: var(--fish-space-sm);
   }
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

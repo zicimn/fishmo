@@ -6,5 +6,5 @@ from .webp import (
     upload_image_to_cloudinary,
     upload_images_to_cloudinary,
 )
-from .counter import ViewCounter
+from .counter import ViewCounter, ArticleViewCounter
 from .scheduler import shutdown_scheduler,start_scheduler,sync_job

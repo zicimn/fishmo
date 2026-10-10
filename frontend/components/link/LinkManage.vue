@@ -128,16 +128,15 @@ async function handleDelete(entry: LinkItems) {
     <!-- ===== 链接列表 ===== -->
     <h3 class="lm-title">现有链接（{{ data?.total ?? 0 }}）</h3>
     <el-skeleton v-if="pending" :rows="3" animated />
-    <el-alert
-      v-else-if="error"
-      title="链接加载失败"
-      type="error"
-      :closable="false"
-      show-icon
-      class="mb"
-    />
+    <div v-else-if="error" class="empty-img">
+      <img src="/status/1.png" alt="加载失败" />
+      <p>链接加载失败，请稍后重试</p>
+    </div>
     <ClientOnly v-else-if="!data?.items?.length">
-      <el-empty description="暂无下载链接" :image-size="70" />
+      <div class="empty-img">
+        <img src="/status/2.png" alt="暂无链接" />
+        <p>暂无链接</p>
+      </div>
     </ClientOnly>
 
     <ul v-else class="lm-list">
@@ -379,5 +378,23 @@ async function handleDelete(entry: LinkItems) {
   .lm-actions {
     align-self: flex-end;
   }
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

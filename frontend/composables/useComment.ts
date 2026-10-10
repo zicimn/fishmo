@@ -1,11 +1,14 @@
 import type { CommentList } from '~/types'
 import { api, cleanParams } from '~/utils/request'
 
-/** 评论列表（SSR 友好） */
-export function useCommentList(gameId: number, page = 1, size = 20) {
+/** 评论列表（SSR 友好），type 支持 "galgame" | "article" */
+export function useCommentList(targetId: number, page = 1, size = 20, type = 'galgame') {
   return useAsyncData(
-    `comment-list-${gameId}`,
-    () => api<CommentList>(`/api/v1/comment/${gameId}`, { query: { page, size } }),
+    `comment-list-${targetId}-${type}`,
+    () =>
+      api<CommentList>(`/api/v1/comment/${targetId}`, {
+        query: cleanParams({ page, size, type }),
+      }),
   )
 }
 
@@ -31,11 +34,11 @@ export function useUserCommentList(
   )
 }
 
-/** 发表评论（需登录，game_id 走 query） */
-export async function addComment(gameId: number, content: string) {
+/** 发表评论（需登录，game_id 走 query），type 支持 "galgame" | "article" */
+export async function addComment(targetId: number, content: string, type = 'galgame') {
   return api<{ msg: string; id: number }>('/api/v1/comment/add', {
     method: 'POST',
-    query: { game_id: gameId },
+    query: cleanParams({ game_id: targetId, type }),
     body: { content },
   })
 }

@@ -69,7 +69,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
       </div>
     </template>
 
-    <!-- ===== 最新发布：按后端默认时间倒序 ===== -->
+    <!-- ===== 最新发布：与热门游戏一致的横向卡片样式 ===== -->
     <template v-if="latestItems.length">
       <div class="section-head">
         <h2 class="section-title">
@@ -79,8 +79,20 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
         <span class="section-note">最近更新</span>
         <NuxtLink to="/games" class="section-more">更多 →</NuxtLink>
       </div>
-      <div class="latest-grid">
-        <GameCard v-for="item in latestItems" :key="item.id" :item="item" />
+      <div class="popular-scroll latest-scroll">
+        <NuxtLink
+          v-for="item in latestItems"
+          :key="item.id"
+          :to="`/galgame/${item.id}`"
+          class="popular-item"
+        >
+          <el-image :src="item.cover" fit="cover" class="popular-cover" lazy />
+          <div class="popular-name" :title="item.name">{{ item.name }}</div>
+          <div class="popular-views">
+            <el-icon><View /></el-icon>
+            {{ item.views }}
+          </div>
+        </NuxtLink>
       </div>
     </template>
 
@@ -101,11 +113,29 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   position: relative;
   display: block;
   height: clamp(220px, 30vw, 400px);
-  border-radius: var(--fish-radius);
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--fish-border);
   text-decoration: none;
   isolation: isolate;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hero-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* 深色模式下：极细微光边框 */
+html.dark .hero-card {
+  box-shadow: 0 0 0 1px rgba(143, 142, 245, 0.08);
+}
+
+html.dark .hero-card:hover {
+  box-shadow: 0 0 0 1px rgba(143, 142, 245, 0.15),
+              0 12px 40px rgba(0, 0, 0, 0.35),
+              0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .hero-bg {
@@ -116,16 +146,16 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   z-index: -2;
 }
 
-/* 径向渐变从左下到右上：文字在左下可读，封面右侧/上方保持清晰 */
+/* 底部深色渐变遮罩：从下到上渐变，图片上方保持清晰 */
 .hero-overlay {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: radial-gradient(
-    ellipse 80% 70% at 20% 85%,
-    rgba(11, 11, 15, 0.94) 0%,
-    rgba(11, 11, 15, 0.6) 40%,
-    rgba(11, 11, 15, 0.1) 100%
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.45) 35%,
+    transparent 65%
   );
 }
 
@@ -139,10 +169,12 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 
 .hero-badge {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  background: var(--fish-accent-soft);
-  border: 1px solid var(--fish-accent-border);
+  background: rgba(143, 142, 245, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(143, 142, 245, 0.25);
   color: var(--fish-accent);
   font-size: var(--fish-text-xs);
   font-weight: 600;
@@ -256,7 +288,7 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
   width: 160px;
   padding: var(--fish-space-sm);
   border-radius: var(--fish-radius-sm);
-  background: var(--fish-bg-2);
+  background: transparent;
   border: 1px solid var(--fish-border);
   text-decoration: none;
   scroll-snap-align: start;
@@ -317,12 +349,10 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 }
 
 /* ========================================================
-   最新发布网格：复用 GameCard，4 列桌面 → 2 列移动
+   最新发布：与热门游戏一致的横向卡片（复用 popular-scroll 样式）
    ======================================================== */
-.latest-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--fish-space-lg);
+.latest-scroll {
+  /* 复用 popular-scroll 的样式（flex row + scroll-snap），仅作语义区分 */
 }
 
 /* ========================================================
@@ -359,11 +389,6 @@ const featuredInitial = computed(() => (featured.value?.author || 'U').charAt(0)
 
   .popular-item {
     width: 130px;
-  }
-
-  .latest-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: var(--fish-space-md);
   }
 }
 </style>

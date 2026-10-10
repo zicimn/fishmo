@@ -1,0 +1,1 @@
+Default_cover = "https://res.cloudinary.com/djgtkiaje/image/upload/v1790641412/1_c6qpkb.jpg"

@@ -5,7 +5,9 @@ import { useAuthStore } from '~/stores/auth'
 import { getErrDetail } from '~/utils/request'
 import type { CommentItems } from '~/types'
 
-const props = defineProps<{ gameId: number }>()
+const props = defineProps<{ gameId: number; type?: string }>()
+
+const commentType = computed(() => props.type || 'galgame')
 
 const auth = useAuthStore()
 const newContent = ref('')
@@ -17,7 +19,7 @@ onMounted(() => {
   isMounted.value = true
 })
 
-const { data, pending, error, refresh } = useCommentList(props.gameId)
+const { data, pending, error, refresh } = useCommentList(props.gameId, 1, 20, commentType.value)
 
 // 行内编辑自己的评论：editingId 为正在编辑的评论 id，editContent 为编辑中的内容
 const editingId = ref<number | null>(null)
@@ -50,7 +52,7 @@ async function handleSubmit() {
   }
   submitting.value = true
   try {
-    await addComment(props.gameId, content)
+    await addComment(props.gameId, content, commentType.value)
     newContent.value = ''
     ElMessage.success('评论发表成功')
     refresh()
@@ -103,29 +105,38 @@ async function handleDelete(entry: CommentItems) {
     <h3 class="section-title">评论（{{ data?.total ?? 0 }}）</h3>
 
     <div class="comment-editor">
-      <el-input
-        v-model="newContent"
-        type="textarea"
-        :rows="3"
-        maxlength="2000"
-        show-word-limit
-        placeholder="写下你的评论……"
-      />
+      <div class="ce-textarea-wrap">
+        <el-input
+          v-model="newContent"
+          type="textarea"
+          :rows="3"
+          maxlength="2000"
+          show-word-limit
+          placeholder="写下你的评论……"
+          class="ce-textarea"
+        />
+      </div>
       <div class="editor-actions">
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">发表评论</el-button>
+        <button class="ce-submit-btn" :disabled="submitting" @click="handleSubmit">
+          <span v-if="submitting" class="ce-btn-spinner"></span>
+          <svg v-else class="ce-btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          {{ submitting ? '发表中...' : '发表评论' }}
+        </button>
       </div>
     </div>
 
     <el-skeleton v-if="pending" :rows="4" animated />
-    <el-alert
-      v-else-if="error"
-      title="评论加载失败，请稍后重试"
-      type="error"
-      :closable="false"
-      show-icon
-    />
+    <div v-else-if="error" class="empty-img">
+      <img src="/status/1.png" alt="加载失败" />
+      <p>评论加载失败，请稍后重试</p>
+    </div>
     <ClientOnly v-else-if="!data?.items?.length">
-      <el-empty description="暂无评论，快来抢沙发" :image-size="80" />
+      <div class="empty-img">
+        <img src="/status/2.png" alt="暂无评论" />
+        <p>暂无评论</p>
+      </div>
     </ClientOnly>
     <ul v-else class="comment-list">
       <li v-for="entry in data.items" :key="entry.item.id" class="comment-item">
@@ -150,6 +161,7 @@ async function handleDelete(entry: CommentItems) {
               :rows="2"
               maxlength="2000"
               show-word-limit
+              class="ce-textarea"
             />
             <div class="edit-actions">
               <el-button size="small" type="primary" :loading="saving" @click="saveEdit">保存</el-button>
@@ -164,65 +176,204 @@ async function handleDelete(entry: CommentItems) {
 </template>
 
 <style scoped>
+/* ===== Section Header ===== */
 .section-title {
-  margin: 0 0 16px;
-  font-size: 18px;
+  margin: 0 0 var(--fish-space-lg);
+  font-size: var(--fish-text-lg);
   font-weight: 700;
+  color: var(--fish-text-1);
 }
+
+/* ===== Comment Editor — 类发布页玻璃风格 ===== */
 .comment-editor {
-  margin-bottom: 20px;
+  margin-bottom: var(--fish-space-xl);
+  background: rgba(24, 24, 31, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--fish-radius);
+  padding: var(--fish-space-lg);
+  transition: border-color 0.2s;
 }
+
+.comment-editor:focus-within {
+  border-color: rgba(124, 123, 242, 0.2);
+}
+
+.ce-textarea-wrap {
+  width: 100%;
+}
+
+.ce-textarea :deep(.el-textarea__inner) {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  border-radius: var(--fish-radius-sm);
+  color: var(--fish-text-1);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  padding: 0.65rem 0.75rem;
+  transition: border-color 0.2s, background 0.2s;
+  resize: vertical;
+}
+
+.ce-textarea :deep(.el-textarea__inner:focus) {
+  border-color: rgba(124, 123, 242, 0.3);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+}
+
+.ce-textarea :deep(.el-textarea__inner::placeholder) {
+  color: var(--fish-text-3);
+  font-size: 0.85rem;
+}
+
+.ce-textarea :deep(.el-input__count) {
+  color: var(--fish-text-3);
+  font-size: 0.7rem;
+  background: transparent;
+}
+
 .editor-actions {
-  margin-top: 10px;
-  text-align: right;
+  margin-top: var(--fish-space-md);
+  display: flex;
+  justify-content: flex-end;
 }
+
+/* ===== 发表按钮（类 ae-publish-btn 风格） ===== */
+.ce-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--fish-accent);
+  border: none;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  line-height: 1;
+}
+
+.ce-submit-btn:hover:not(:disabled) {
+  background: #8F8EF5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(124, 123, 242, 0.25);
+}
+
+.ce-submit-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ce-submit-btn:disabled {
+  background: rgba(124, 123, 242, 0.35);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ce-btn-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ce-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.ce-btn-icon {
+  flex-shrink: 0;
+}
+
+@keyframes ce-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Comment List ===== */
 .comment-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
+
 .comment-item {
   display: flex;
-  gap: 12px;
-  padding: 16px 0;
-  border-bottom: 1px solid rgba(24, 24, 27, 0.08);
+  gap: var(--fish-space-md);
+  padding: var(--fish-space-lg) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
+
 .comment-item:last-child {
   border-bottom: none;
 }
-html.dark .comment-item {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
-}
+
 .comment-body {
   flex: 1;
   min-width: 0;
 }
+
 .comment-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--fish-space-sm);
+  margin-bottom: var(--fish-space-xs);
 }
+
 .comment-user {
   font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
+  font-size: var(--fish-text-sm);
+  color: var(--fish-text-1);
 }
+
 .comment-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 2px;
 }
+
 .comment-content {
   margin: 0;
-  font-size: 14px;
-  color: var(--el-text-color-regular);
+  font-size: var(--fish-text-sm);
+  color: var(--fish-text-2);
   line-height: 1.7;
   word-break: break-word;
 }
+
+/* ===== Edit Mode ===== */
 .edit-actions {
-  margin-top: 8px;
+  margin-top: var(--fish-space-sm);
   display: flex;
-  gap: 8px;
+  gap: var(--fish-space-sm);
+}
+
+/* ===== Empty State — 使用 fishmo 空状态插图 ===== */
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

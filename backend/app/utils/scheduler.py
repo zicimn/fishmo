@@ -2,15 +2,16 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from config import AsyncSessionLocal
-from .counter import ViewCounter
+from .counter import ViewCounter, ArticleViewCounter
 
 scheduler = AsyncIOScheduler()
 
 
 async def sync_job():
-    """定时任务：把 Redis 中累积的文章浏览量增量批量回写数据库。"""
+    """定时任务：把 Redis 中累积的浏览量增量批量回写数据库。"""
     async with AsyncSessionLocal() as session:
         await ViewCounter.sync_to_db(session)
+        await ArticleViewCounter.sync_to_db(session)
 
 
 def start_scheduler():

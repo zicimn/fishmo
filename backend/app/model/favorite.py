@@ -20,18 +20,12 @@ class Favorite(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("user.id", ondelete="RESTRICT"), comment="用户ID"
-    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="RESTRICT"), comment="用户ID")
 
-    gal_id: Mapped[int] = mapped_column(
-        ForeignKey("galgame.id", ondelete="RESTRICT"), comment="文章ID"
-    )
+    gal_id: Mapped[int] = mapped_column(ForeignKey("galgame.id", ondelete="RESTRICT"), comment="游戏ID")
 
     # W7: 使用 server_default=func.now() 替代 default=datetime.now
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), comment="收藏时间"
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), comment="收藏时间")
 
     # C1: back_populates 从 "links" 改为 "favorites"，避免与 Link 模型冲突
     author: Mapped["User"] = relationship(

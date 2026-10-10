@@ -65,7 +65,10 @@ async function handleDelete(entry: CommentItems) {
   <div class="my-comments">
     <el-skeleton v-if="pending && !data?.items?.length" :rows="6" animated />
     <ClientOnly v-else-if="!data?.items?.length">
-      <el-empty description="还没有发表评论" :image-size="90" />
+      <div class="empty-img">
+          <img src="/status/2.png" alt="暂无评论" />
+          <p>暂无评论</p>
+        </div>
     </ClientOnly>
 
     <template v-else>
@@ -128,7 +131,7 @@ async function handleDelete(entry: CommentItems) {
   border: 1px solid var(--fish-border);
   border-radius: 10px;
   margin-bottom: 8px;
-  background: var(--fish-bg-2);
+  background: transparent;
   transition: border-color 0.2s, transform 0.2s;
 }
 .m-item:hover {
@@ -186,5 +189,23 @@ async function handleDelete(entry: CommentItems) {
     width: 100%;
     justify-content: flex-end;
   }
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

@@ -2,8 +2,10 @@
 import {
   CATEGORY_OPTIONS,
   PLATFORM_OPTIONS,
+  SEARCH_OPTIONS,
   type CategoryValue,
   type PlatformValue,
+  type SearchTypeValue,
   type GalgameListQuery,
 } from '~/types'
 import { api, cleanParams } from '~/utils/request'
@@ -45,11 +47,11 @@ const { data, pending, error, refresh } = useAsyncData(
   'games-page-list',
   async () => {
     const q = { ...listQuery.value }
-    if (q.searchType === 'tag' && q.keyword) {
-      // 标签搜索：使用搜索 API，保留 keyword, page, size；清除 category/platform/searchType
+    if (q.searchType && q.keyword) {
+      // 搜索：使用搜索 API，保留 keyword, page, size；清除 category/platform/searchType
       const { searchType, category, platform, ...rest } = q
       return api<GalList>('/api/v1/search/', {
-        query: cleanParams({ ...rest, search_type: 'tag' }),
+        query: cleanParams({ ...rest, search_type: searchType }),
       })
     }
     // 常规浏览：使用 galgame 列表 API，清除 searchType
@@ -72,7 +74,17 @@ function syncUrl() {
   router.replace({ query: q })
 }
 
-/** 标签搜索时清除标签回到全部列表 */
+/** 获取搜索类型的中文标签 */
+function getSearchTypeLabel(type: string): string {
+  const opt = SEARCH_OPTIONS.find((o) => o.value === type)
+  return opt ? opt.label : type
+}
+
+const searchTypeLabel = computed(() =>
+  filters.searchType ? getSearchTypeLabel(filters.searchType) : ''
+)
+
+/** 清除搜索条件回到全部列表 */
 function clearTagSearch() {
   filters.searchType = ''
   filters.keyword = ''
@@ -143,14 +155,14 @@ watch(
     <!-- ===== 页面标题：标签搜索时显示搜索提示 ===== -->
     <div class="page-head">
       <h1 class="page-title">
-        {{ filters.searchType === 'tag' && filters.keyword ? `标签：${filters.keyword}` : '全部游戏' }}
+        {{ filters.searchType && filters.keyword ? `${searchTypeLabel}：${filters.keyword}` : '全部游戏' }}
       </h1>
       <span class="page-count">共 {{ total }} 款</span>
     </div>
 
     <!-- ===== 标签搜索提示：当从详情页标签跳转时显示 ===== -->
-    <div v-if="filters.searchType === 'tag' && filters.keyword" class="tag-search-banner">
-      <span class="tag-search-label">标签搜索：</span>
+    <div v-if="filters.searchType && filters.keyword" class="tag-search-banner">
+      <span class="tag-search-label">{{ searchTypeLabel }}搜索：</span>
       <span class="tag-search-chip">{{ filters.keyword }}</span>
       <el-button size="small" text @click="clearTagSearch">
         <el-icon><Close /></el-icon>
@@ -158,7 +170,7 @@ watch(
       </el-button>
     </div>
 
-    <!-- ===== 枚举筛选：作品 / 平台横排可点选，标签搜索时隐藏 ===== -->
+    <!-- ===== 枚举筛选：作品 / 平台横排可点选，搜索时隐藏 ===== -->
     <div v-if="!filters.searchType" class="filter-rows">
       <div class="filter-row">
         <span class="filter-label">作品</span>
@@ -200,28 +212,20 @@ watch(
       </div>
     </div>
 
-    <el-alert
-      v-if="error"
-      title="游戏列表加载失败（后端接口可能尚未跑通）"
-      type="error"
-      :closable="false"
-      show-icon
-      class="mb"
-    >
-      <template #default>
-        <p>{{ error instanceof Error ? error.message : String(error) }}</p>
-        <el-button size="small" @click="refresh">重试</el-button>
-      </template>
-    </el-alert>
+    <div v-if="error" class="empty-state">
+      <img src="/status/1.png" alt="加载失败" class="empty-404" />
+      <p class="empty-text">加载失败，请稍后重试</p>
+      <el-button size="small" @click="refresh">重试</el-button>
+    </div>
 
     <el-skeleton v-if="pending && !items.length" :rows="6" animated class="mb" />
 
-    <ClientOnly v-else-if="!items.length">
+    <ClientOnly v-else-if="!items.length && !error">
       <div class="empty-state">
-        <el-icon class="empty-icon" :size="48"><Search /></el-icon>
+        <img src="/status/1.png" alt="无结果" class="empty-404" />
         <p class="empty-text">
-          <template v-if="filters.searchType === 'tag'">
-            未找到标签为「<span class="empty-keyword">{{ filters.keyword }}</span>」的游戏
+          <template v-if="filters.searchType">
+            未找到{{ searchTypeLabel }}为「<span class="empty-keyword">{{ filters.keyword }}</span>」的游戏
           </template>
           <template v-else-if="filters.keyword">
             未找到与「<span class="empty-keyword">{{ filters.keyword }}</span>」相关的游戏
@@ -230,9 +234,6 @@ watch(
             暂无符合条件的游戏
           </template>
         </p>
-        <NuxtLink to="/publish" class="empty-action">
-          发布第一款 →
-        </NuxtLink>
       </div>
     </ClientOnly>
 
@@ -346,7 +347,7 @@ watch(
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid var(--fish-border);
-  background: var(--fish-bg-2);
+  background: transparent;
   color: var(--fish-text-2);
   font-size: var(--fish-text-sm);
   font-family: inherit;
@@ -424,6 +425,13 @@ watch(
   align-items: center;
   gap: var(--fish-space-md);
   padding: var(--fish-space-2xl) var(--fish-space-lg);
+}
+
+.empty-404 {
+  width: 300px;
+  max-width: 80%;
+  border-radius: 12px;
+  opacity: 0.85;
 }
 
 .empty-icon {

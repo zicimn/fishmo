@@ -5,12 +5,14 @@ definePageMeta({ middleware: 'auth' })
 const route = useRoute()
 const router = useRouter()
 
-type TabName = 'galgame' | 'comment' | 'link'
+type TabName = 'galgame' | 'comment' | 'link' | 'article'
 
 // 初始 Tab 支持 URL 参数（个人主页等入口跳转 /manage?tab=comment 等）
 const rawTab = route.query.tab
 const rawTabStr = Array.isArray(rawTab) ? rawTab[0] : rawTab
-const activeTab = ref<TabName>(rawTabStr === 'comment' || rawTabStr === 'link' ? rawTabStr : 'galgame')
+const activeTab = ref<TabName>(
+  rawTabStr === 'comment' || rawTabStr === 'link' || rawTabStr === 'article' ? rawTabStr : 'galgame',
+)
 
 // Tab 切换时同步 URL，便于分享/刷新保持
 watch(activeTab, (tab: TabName) => {
@@ -28,13 +30,18 @@ watch(activeTab, (tab: TabName) => {
       :closable="false"
       show-icon
       class="mb"
-      title="管理我发布的游戏 / 评论 / 链接。编辑单个游戏请进入游戏管理页，评论与链接支持行内编辑。"
+      title="管理我发布的游戏 / 评论 / 链接 / 文章。编辑单个游戏请进入游戏管理页，评论与链接支持行内编辑。"
     />
 
     <el-tabs v-model="activeTab">
       <!-- ===== 我的游戏 ===== -->
       <el-tab-pane label="我的游戏" name="galgame">
         <MyGames />
+      </el-tab-pane>
+
+      <!-- ===== 我的文章 ===== -->
+      <el-tab-pane label="我的文章" name="article">
+        <MyArticles />
       </el-tab-pane>
 
       <!-- ===== 我的评论 ===== -->

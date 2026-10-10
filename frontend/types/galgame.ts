@@ -144,3 +144,12 @@ export interface FavoriteList {
   total: number
   items: FavoriteItem[]
 }
+
+// ===== 搜索枚举：后端 model/enums.py 的 SearchEnum(str, PyEnum) =====
+export type SearchTypeValue = 'name' | 'tag' | 'company'
+
+export const SEARCH_OPTIONS: { label: string; value: SearchTypeValue }[] = [
+  { label: '名称', value: 'name' },
+  { label: '标签', value: 'tag' },
+  { label: '制作商', value: 'company' },
+]

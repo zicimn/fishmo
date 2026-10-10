@@ -1,7 +1,7 @@
 # fishmo 修改与报错记录（fastapi_log.md）
 
 > 作用：记录后端开发过程中的**代码修改**与**报错/排查**过程，便于追溯。
-> 记录区间：2026-08-06 ~ 2026-09-17
+> 记录区间：2026-08-06 ~ 2026-09-19
 > 说明：文档如实记录，包含已修复、待处理、待确认三类条目。
 
 ## 目录
@@ -256,6 +256,36 @@
 - **根因**：`convert_image_to_webp` 失败返回 `None` 且混入列表，`convert_images_to_webp` 的 `except` 是死代码；后续 `res['status']` 对 `None` 下标。
 - **修复**：见[修改 1.2](#12-utilswebppy-批量上传崩溃修复)。
 - **状态**：✅ 已修复（冒烟测试覆盖：损坏图跳过、上传失败返回 None 不崩溃）。
+
+### 1.31 后端路由目录重命名：`api/v1/` → `api/service/`
+
+- **文件**：`backend/app/api/v1/` 全部文件移至 `backend/app/api/service/`
+- **同步修改**：
+  - `main.py` 的 import 从 `from api.v1 import ...` 改为 `from api.service import ...`
+  - 所有内部相对导入保持不变（包内 `from .user import ...`）
+- **原因**：项目分层演进，v1 版本号前后端管理，路由层改为更具语义的命名 `service/`。
+- **状态**：✅ 已完成。
+
+### 1.32 新增随机游戏端点 `GET /api/v1/galgame/rvisit`
+
+- **文件**：`backend/app/api/service/galgame.py`
+- **内容**：
+  - 新增 `rvisit` 端点，无鉴权、无参数。
+  - 查询 `Galgame.id` 最大值与最小值，在区间内生成随机数，按 `>= rand_id` 且 `status == True` 取第一条。
+  - 无公开游戏时返回 `404 暂无游戏`。
+- **同步**：前端 `layouts/default.vue` 的 `goRandomGame()` 调用该端点，导航栏与移动端抽屉均有"随机"入口。
+- **状态**：✅ 已完成。
+
+### 1.33 前端 UI/UX 批量增强
+
+- **设置面板**：顶栏齿轮图标 → 居中悬浮设置面板（`el-dialog`，左右结构），外观 Tab（主题切换/亮度增强开关/透明度滑块/阴影强度滑块）+ 背景 Tab（`public/background/` 图片网格选择器）
+- **背景图片系统**：`import.meta.glob` 静态发现背景图片，CSS 变量 `--fish-bg-image` 级联到 body `background`，深色/浅色模式各有半透明遮罩
+- **随机游戏导航**：导航栏与移动端抽屉新增"随机"入口，调用 `GET /api/v1/galgame/rvisit`
+- **卡片背景透明化**：GameCard、个人主页卡片 `background: transparent !important`，露出 body 背景
+- **状态插图**：错误/空状态统一使用 `/status/1.png`（加载失败）或 `/status/2.png`（空数据），替代原来的 `el-alert` 提示
+- **精选 Hero 增强**：底部渐变遮罩 `0→rgba(0,0,0,0.85)`、玻璃拟态标签 `backdrop-filter: blur(8px)`、深色模式 `0.08 紫蓝微光边框`
+- **编辑资料重布局**：头像左移 150px、表单字段右移 100px、输入框 max-width 250px、简介左右各收缩 50px、保存按钮右对齐
+- **深色模式开关**：移入设置面板外观 Tab 作为按钮（`theme-switch-btn`），导航栏保留快捷图标入口
 
 ### 2.3 ImportError: cannot import name 'CLOUDINARY_API_KEY' from 'config.security'
 

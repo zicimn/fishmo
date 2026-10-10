@@ -118,32 +118,36 @@ async function handleDelete() {
     </ClientOnly>
     <template v-else>
       <el-form label-position="top" @submit.prevent="handleSave">
-        <el-form-item label="头像">
-          <el-upload
-            class="avatar-uploader"
-            :show-file-list="false"
-            :auto-upload="false"
-            accept="image/*"
-            :on-change="onAvatarChange"
-            :on-remove="onAvatarRemove"
-          >
-            <img v-if="avatarPreview" :src="avatarPreview" class="avatar-preview" alt="头像" />
-            <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-          </el-upload>
-        </el-form-item>
-        <el-form-item label="用户名" required>
-          <el-input v-model="form.username" placeholder="2-20 个字符" maxlength="20" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="form.email" type="email" placeholder="用于登录与接收通知" />
-        </el-form-item>
-        <el-form-item label="个人简介">
+        <div class="form-top-row">
+          <el-form-item label="头像" class="avatar-item">
+            <el-upload
+              class="avatar-uploader"
+              :show-file-list="false"
+              :auto-upload="false"
+              accept="image/*"
+              :on-change="onAvatarChange"
+              :on-remove="onAvatarRemove"
+            >
+              <img v-if="avatarPreview" :src="avatarPreview" class="avatar-preview" alt="头像" />
+              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+            </el-upload>
+          </el-form-item>
+          <div class="form-fields-group">
+            <el-form-item label="用户名" required>
+              <el-input v-model="form.username" placeholder="2-20 个字符" maxlength="20" />
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="form.email" type="email" placeholder="用于登录与接收通知" />
+            </el-form-item>
+          </div>
+        </div>
+        <el-form-item label="个人简介" class="bio-item">
           <el-input v-model="form.bio" type="textarea" :rows="3" placeholder="介绍一下自己" />
         </el-form-item>
-        <el-form-item label="修改密码（留空则不改）">
+        <el-form-item label="修改密码（留空则不改）" class="pwd-item">
           <el-input v-model="form.password" type="password" show-password placeholder="6-20 个字符" />
         </el-form-item>
-        <el-button type="primary" native-type="submit" :loading="saving">
+        <el-button type="primary" native-type="submit" :loading="saving" class="save-btn">
           保存修改
         </el-button>
       </el-form>
@@ -158,6 +162,44 @@ async function handleDelete() {
 </template>
 
 <style scoped>
+.form-top-row {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.form-top-row .avatar-item {
+  margin-bottom: 0;
+  margin-left: 150px;
+}
+
+.form-top-row .avatar-item :deep(.el-form-item__content) {
+  flex-wrap: nowrap;
+}
+
+.form-fields-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin-left: 100px;
+}
+
+.form-fields-group :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.form-fields-group :deep(.el-form-item__label) {
+  text-align: center;
+  width: 100%;
+  display: block;
+}
+
+.form-fields-group :deep(.el-input) {
+  max-width: 250px;
+}
+
 .avatar-uploader :deep(.el-upload) {
   border: 1px dashed rgba(226, 232, 240, 0.7);
   border-radius: 0.75rem;
@@ -187,6 +229,20 @@ html.dark .avatar-uploader :deep(.el-upload) {
   justify-content: center;
   font-size: 28px;
   color: #71717a;
+}
+.bio-item {
+  padding-left: 65px;
+  padding-right: 65px;
+}
+.pwd-item{
+  padding-left: 65px;
+  padding-right: 65px;
+}
+.save-btn{
+  display: block;
+  margin-left: auto;
+  margin-right: 0;
+  width: fit-content;
 }
 .danger-zone {
   text-align: right;

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .link import Link
     from .comment import Comment
     from .favorite import Favorite
+    from .article import Article
 
 class User(Base):
     __tablename__ = "user"
@@ -53,6 +54,12 @@ class User(Base):
     # C1: 收藏关系集合侧，lazy="raise" 禁止隐式全量加载
     favorites: Mapped[List["Favorite"]] = relationship(
         "Favorite",
+        back_populates="author",
+        lazy="raise"
+    )
+
+    articles: Mapped[List["Article"]] = relationship(
+        "Article",
         back_populates="author",
         lazy="raise"
     )

@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select,update,delete,func
@@ -5,8 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.db import get_db
 from utils.verify_user import verify_admin
-from model.galgame import Galgame 
+from model.galgame import Galgame
 from config.cache import delete_cache_pattern, update_version, GAL_VERSION_KEY,delete_cache
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/control", tags=["admin_control"]) 
 security = HTTPBearer(auto_error=False)
@@ -63,7 +66,7 @@ async def update_status(
         )
         await db.commit()
     except Exception as e:
-        print(f"Error updating status: {e}")
+        logger.exception("更新游戏状态出错: gal_id=%s, status=%s", gal_id, status)
         raise HTTPException(status_code=500, detail="更新状态时发生错误")
 
     # 无论通过还是拒绝，状态变更后都必须使缓存失效
@@ -97,7 +100,7 @@ async def delete_gal(
         await db.rollback()
         raise HTTPException(status_code=400, detail="该游戏存在关联数据，无法删除")
     except Exception as e:
-        print(f"Error deleting galgame: {e}")
+        logger.exception("管理员删除游戏出错: gal_id=%s", gal_id)
         raise HTTPException(status_code=500, detail="删除游戏时发生错误")
 
     await delete_cache_pattern("Galgame:*")

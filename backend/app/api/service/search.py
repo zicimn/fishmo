@@ -22,10 +22,11 @@ async def search(
     size: int = Query(10, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
+    version = await get_search_version(GAL_VERSION_KEY)
     cache_key = get_cache_key(
-        "Search", 
+        "Search",
         keyword=keyword, search_type=search_type,
-        page=page, size=size
+        page=page, size=size, version=version,
     )
 
     cache_data = await get_from_cache(cache_key)

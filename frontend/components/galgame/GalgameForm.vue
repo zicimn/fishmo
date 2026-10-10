@@ -13,10 +13,10 @@ import {
 } from '~/types'
 
 /**
- * 游戏发布/编辑共用表单（分步向导）。
+ * 游戏发布/编辑表单（双栏布局：侧栏设定 + 主编辑器）。
  * - mode="add"：完整校验（至少一个名称 + 封面必填），提交 AddGal。
- * - mode="edit"：预填已发布字段；仅上传了新封面/新截图时才提交 cover/images（后端整体替换截图）。
- * - 布局：单列居中分步向导，el-steps 步骤指示器 + 逐节展示 + 底部导航。
+ * - mode="edit"：预填已发布字段；仅上传了新封面/新截图时才提交 cover/images。
+ * - 布局仿照 blog 发布页：左 220px 侧栏（封面/设定）+ 右 1fr 编辑器（名称 + 简介）。
  */
 const props = defineProps<{
   mode: 'add' | 'edit'
@@ -29,20 +29,7 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-// ===== 分步向导状态 =====
-const step = ref(0)
-const totalSteps = 3
-
-const STEP_LABELS = ['基本信息', '游戏简介', '封面与截图']
-
-function nextStep() {
-  if (step.value < totalSteps - 1) step.value++
-}
-
-function prevStep() {
-  if (step.value > 0) step.value--
-}
-
+// ===== 封面 & 截图 =====
 const coverBase64 = ref('')
 const coverPreview = ref('')
 const imageFileList = ref<UploadUserFile[]>([])
@@ -53,6 +40,7 @@ const imagesBase64 = computed(() =>
     .filter((b: string | undefined): b is string => !!b),
 )
 
+// ===== 表单数据 =====
 const form = reactive({
   cn_name: '',
   jp_name: '',
@@ -64,7 +52,7 @@ const form = reactive({
   platfrom: [] as PlatformValue[],
 })
 
-// 编辑模式预填可回填字段（详情接口已返回三名称与作者 id，直接回填）
+// 编辑模式预填
 if (props.mode === 'edit' && props.initial) {
   const initial = props.initial
   form.cn_name = initial.cn_name || ''
@@ -72,7 +60,6 @@ if (props.mode === 'edit' && props.initial) {
   form.en_name = initial.en_name || ''
   form.content = initial.content || ''
   form.company = initial.company || []
-  // 仅回填合法枚举值：历史自由文本分类不在枚举内，留空则不随 edit 提交（后端保留原值）
   form.category = CATEGORY_OPTIONS.some((c) => c.value === initial.category)
     ? (initial.category as CategoryValue)
     : ''
@@ -81,24 +68,73 @@ if (props.mode === 'edit' && props.initial) {
   coverPreview.value = initial.cover || ''
 }
 
-// ===== 实时预览数据 =====
-const previewName = computed(() => form.cn_name || form.jp_name || form.en_name || '未命名游戏')
-const previewSubNames = computed(() => {
-  const main = previewName.value
-  const set = new Set<string>()
-  for (const n of [form.cn_name, form.jp_name, form.en_name]) {
-    if (n && n !== main) set.add(n)
-  }
-  return [...set]
-})
-const previewTags = computed(() => {
-  const tags: string[] = []
-  if (form.category) tags.push(form.category)
-  tags.push(...form.platfrom)
-  tags.push(...form.tag)
-  return tags.slice(0, 4)
+// ===== Auto-save draft =====
+const DRAFT_KEY = 'galgame_draft'
+const lastSavedTime = ref('')
+const isSaving = ref(false)
+let saveTimer: ReturnType<typeof setInterval> | null = null
+
+function loadDraft() {
+  if (props.mode === 'edit') return
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return
+    const d = JSON.parse(raw)
+    form.cn_name = d.cn_name || ''
+    form.jp_name = d.jp_name || ''
+    form.en_name = d.en_name || ''
+    form.content = d.content || ''
+    form.company = d.company || []
+    form.category = d.category || ''
+    form.tag = d.tag || []
+    form.platfrom = d.platfrom || []
+    lastSavedTime.value = d.savedTime || ''
+    if (d.coverPreview) coverPreview.value = d.coverPreview
+  } catch { /* ignore */ }
+}
+
+function saveDraft() {
+  if (props.mode === 'edit' || props.submitting) return
+  if (!form.cn_name && !form.jp_name && !form.en_name && !form.content) return
+  isSaving.value = true
+  try {
+    const d = {
+      cn_name: form.cn_name,
+      jp_name: form.jp_name,
+      en_name: form.en_name,
+      content: form.content,
+      company: form.company,
+      category: form.category,
+      tag: form.tag,
+      platfrom: form.platfrom,
+      coverPreview: coverPreview.value.startsWith('data:') ? coverPreview.value : '',
+      savedTime: new Date().toLocaleString(),
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d))
+    lastSavedTime.value = d.savedTime
+  } catch { /* ignore */ }
+  finally { isSaving.value = false }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+  lastSavedTime.value = ''
+}
+
+watch([() => form.cn_name, () => form.jp_name, () => form.en_name, () => form.content, () => form.company, () => form.category, () => form.tag, () => form.platfrom, coverPreview], () => {
+  saveDraft()
+}, { deep: true })
+
+onMounted(() => {
+  loadDraft()
+  saveTimer = setInterval(saveDraft, 30000)
 })
 
+onUnmounted(() => {
+  if (saveTimer) clearInterval(saveTimer)
+})
+
+// ===== 交互函数 =====
 function togglePlatform(value: PlatformValue) {
   const i = form.platfrom.indexOf(value)
   if (i >= 0) form.platfrom.splice(i, 1)
@@ -129,7 +165,6 @@ async function onImagesChange(uploadFile: UploadFile) {
     const b64 = await readImageAsBase64(raw)
     imageBase64Map.set(String(uploadFile.uid), b64)
   } catch (err) {
-    // 超限/读取失败：从已展示的 file-list 中移除，避免加入预览与提交
     imageFileList.value = imageFileList.value.filter((f: UploadUserFile) => f.uid !== uploadFile.uid)
     ElMessage.error(err instanceof Error ? err.message : '图片读取失败')
   }
@@ -137,6 +172,74 @@ async function onImagesChange(uploadFile: UploadFile) {
 
 function onImagesRemove(uploadFile: UploadFile) {
   imageBase64Map.delete(String(uploadFile.uid))
+}
+
+// ===== 标签输入 =====
+const tagInput = ref('')
+
+function addTag() {
+  const t = tagInput.value.trim()
+  if (!t) return
+  if (form.tag.includes(t)) {
+    ElMessage.warning('标签已存在')
+    return
+  }
+  form.tag.push(t)
+  tagInput.value = ''
+}
+
+function removeTag(idx: number) {
+  form.tag.splice(idx, 1)
+}
+
+// ===== 发行商输入 =====
+const companyInput = ref('')
+
+function addCompany() {
+  const c = companyInput.value.trim()
+  if (!c) return
+  if (form.company.includes(c)) {
+    ElMessage.warning('已存在')
+    return
+  }
+  form.company.push(c)
+  companyInput.value = ''
+}
+
+function removeCompany(idx: number) {
+  form.company.splice(idx, 1)
+}
+
+// ===== 预览数据 =====
+const previewName = computed(() => form.cn_name || form.jp_name || form.en_name || '未命名游戏')
+const previewSubNames = computed(() => {
+  const main = previewName.value
+  const set = new Set<string>()
+  for (const n of [form.cn_name, form.jp_name, form.en_name]) {
+    if (n && n !== main) set.add(n)
+  }
+  return [...set]
+})
+
+const previewTags = computed(() => {
+  const tags: string[] = []
+  if (form.category) tags.push(form.category)
+  tags.push(...form.platfrom)
+  tags.push(...form.tag)
+  return tags.slice(0, 5)
+})
+
+// ===== 校验与提交 =====
+function validate(): boolean {
+  if (props.mode === 'add' && !form.cn_name && !form.jp_name && !form.en_name) {
+    ElMessage.warning('中文名 / 日文名 / 英文名至少填写一个')
+    return false
+  }
+  if (props.mode === 'add' && !coverBase64.value && !coverPreview.value) {
+    ElMessage.warning('请上传封面图')
+    return false
+  }
+  return true
 }
 
 function buildPayload(): AddGal | EditGal {
@@ -160,444 +263,993 @@ function buildPayload(): AddGal | EditGal {
     return payload
   }
 
-  // edit 模式：只携带显式变更的封面/截图，未变更则不传（后端保留原值）
   const payload: EditGal = { ...base }
   if (coverBase64.value) payload.cover = coverBase64.value
   if (imagesBase64.value.length) payload.images = imagesBase64.value
   return payload
 }
 
-function validate(): boolean {
-  // add 模式要求至少一个名称；edit 模式后端 EditGal 全可选、名称留空不覆盖，故放开
-  if (props.mode === 'add' && !form.cn_name && !form.jp_name && !form.en_name) {
-    ElMessage.warning('中文名 / 日文名 / 英文名至少填写一个')
-    return false
-  }
-  if (props.mode === 'add' && !coverBase64.value && !coverPreview.value) {
-    ElMessage.warning('请上传封面图')
-    return false
-  }
-  return true
-}
-
 function handleSubmit() {
   if (!validate()) return
+  clearDraft()
   emit('submit', buildPayload())
 }
 </script>
 
 <template>
   <div class="gal-form-wrap">
-    <!-- ===== 步骤指示器 ===== -->
-    <div class="steps-bar">
-      <el-steps :active="step" finish-status="success" align-center :space="200">
-        <el-step
-          v-for="(label, i) in STEP_LABELS"
-          :key="i"
-          :title="label"
-        />
-      </el-steps>
-    </div>
+    <div class="ge-layout">
+      <!-- ===== Left Sidebar ===== -->
+      <aside class="ge-sidebar">
+        <div class="ge-sidebar-inner">
+          <!-- Header -->
+          <div class="ge-sidebar-header">
+            <h3 class="ge-sidebar-title">游戏信息</h3>
+          </div>
 
-    <el-form label-position="top" class="gal-form" @submit.prevent="handleSubmit">
-      <el-alert
-        v-if="mode === 'edit' && initial"
-        type="info"
-        :closable="false"
-        show-icon
-        class="mb"
-      >
-        <template #title>
-          已回填当前名称（{{ initial.name }}），留空则保持不变。
-        </template>
-      </el-alert>
+          <!-- Cover Upload -->
+          <div class="ge-section">
+            <label class="ge-label">封面图 <span v-if="mode === 'add'" class="ge-req">*</span></label>
+            <div class="ge-cover-zone">
+              <div v-if="coverPreview" class="ge-cover-preview" @click="() => {}">
+                <el-image :src="coverPreview" fit="cover" class="ge-cover-img" />
+                <div class="ge-cover-overlay">
+                  <el-upload
+                    :show-file-list="false"
+                    :auto-upload="false"
+                    accept="image/*"
+                    :on-change="onCoverChange"
+                    class="ge-cover-replace"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>更换</span>
+                  </el-upload>
+                  <button type="button" class="ge-cover-remove" @click="onCoverRemove" title="移除封面">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div v-else class="ge-cover-empty" @click="() => {}">
+                <el-upload
+                  :show-file-list="false"
+                  :auto-upload="false"
+                  accept="image/*"
+                  :on-change="onCoverChange"
+                  class="ge-cover-upload-btn"
+                >
+                  <div class="ge-cover-placeholder">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <span>上传 2:3 封面</span>
+                  </div>
+                </el-upload>
+              </div>
+            </div>
+            <p class="ge-hint">竖版封面，建议 2:3 比例</p>
+          </div>
 
-      <!-- ===== 步骤 1：基本信息 ===== -->
-      <section v-show="step === 0" class="f-section">
-        <h3 class="f-section-title">基本信息</h3>
-        <p class="f-section-desc">中文 / 日文 / 英文名称至少填写一个，用于站内检索与卡片展示。</p>
-        <div class="form-grid">
-          <el-form-item label="中文名（选填）">
-            <el-input v-model="form.cn_name" placeholder="简体中文名" maxlength="50" />
-          </el-form-item>
-          <el-form-item label="日文名（选填）">
-            <el-input v-model="form.jp_name" placeholder="日文原名" maxlength="50" />
-          </el-form-item>
-          <el-form-item label="英文名（选填）">
-            <el-input v-model="form.en_name" placeholder="英文名" maxlength="50" />
-          </el-form-item>
-        </div>
-        <div class="form-grid">
-          <el-form-item label="作品类型（分类）">
+          <!-- Category -->
+          <div class="ge-section">
+            <label class="ge-label">作品类型</label>
             <el-select
               v-model="form.category"
-              clearable
               placeholder="选择作品类型"
-              style="width: 100%"
+              class="ge-select"
+              clearable
             >
-              <el-option v-for="c in CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+              <el-option
+                v-for="opt in CATEGORY_OPTIONS"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
-          </el-form-item>
-          <el-form-item label="制作公司">
-            <el-select
-              v-model="form.company"
-              multiple
-              filterable
-              allow-create
-              default-first-option
-              placeholder="输入后回车添加"
-              style="width: 100%"
-            >
-              <el-option v-for="c in form.company" :key="c" :label="c" :value="c" />
-            </el-select>
-          </el-form-item>
-        </div>
-        <div class="form-grid" style="margin-top: 16px;">
-          <el-form-item label="标签">
-            <el-select
-              v-model="form.tag"
-              multiple
-              filterable
-              allow-create
-              default-first-option
-              placeholder="输入后回车添加，如 治愈 / 致郁 / 纯爱"
-              style="width: 100%"
-            >
-              <el-option v-for="t in form.tag" :key="t" :label="t" :value="t" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="支持平台">
-            <div class="platform-chips">
+          </div>
+
+          <!-- Platform Chips -->
+          <div class="ge-section">
+            <label class="ge-label">支持平台</label>
+            <div class="ge-chips">
               <button
                 v-for="p in PLATFORM_OPTIONS"
                 :key="p.value"
                 type="button"
-                class="p-chip"
+                class="ge-chip"
                 :class="{ active: form.platfrom.includes(p.value) }"
                 @click="togglePlatform(p.value)"
               >
                 {{ p.label }}
               </button>
             </div>
-          </el-form-item>
-        </div>
-        <div class="step-actions">
-          <el-button @click="emit('cancel')">取消</el-button>
-          <el-button type="primary" @click="nextStep">下一步</el-button>
-        </div>
-      </section>
+          </div>
 
-      <!-- ===== 步骤 2：游戏简介 ===== -->
-      <section v-show="step === 1" class="f-section">
-        <h3 class="f-section-title">游戏简介</h3>
-        <p class="f-section-desc">介绍剧情、玩法与特色，展示在详情页「游戏简介」区块。</p>
-        <el-input
-          v-model="form.content"
-          type="textarea"
-          :rows="16"
-          placeholder="介绍游戏内容……"
-        />
-        <div class="step-actions">
-          <el-button @click="emit('cancel')">取消</el-button>
-          <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" @click="nextStep">下一步</el-button>
-        </div>
-      </section>
+          <!-- Tags -->
+          <div class="ge-section">
+            <label class="ge-label">标签</label>
+            <div class="ge-tag-row">
+              <input
+                v-model="tagInput"
+                type="text"
+                class="ge-tag-input"
+                placeholder="输入后回车添加"
+                @keyup.enter="addTag"
+              />
+              <button type="button" class="ge-tag-add-btn" @click="addTag">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            <div v-if="form.tag.length" class="ge-tag-list">
+              <span v-for="(t, i) in form.tag" :key="i" class="ge-tag-item">
+                {{ t }}
+                <button type="button" class="ge-tag-remove" @click="removeTag(i)">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </span>
+            </div>
+          </div>
 
-      <!-- ===== 步骤 3：封面与截图 + 卡片预览（左右双栏） ===== -->
-      <section v-show="step === 2" class="f-section">
-        <h3 class="f-section-title">封面与截图</h3>
-        <div class="cover-preview-grid">
-          <!-- 左侧：封面上传 + 截图上传 -->
-          <div class="cover-upload-col">
-            <el-form-item label="封面图" :required="mode === 'add'">
-              <el-upload
-                class="cover-uploader"
-                :show-file-list="false"
-                :auto-upload="false"
-                accept="image/*"
-                :on-change="onCoverChange"
-                :on-remove="onCoverRemove"
+          <!-- Company -->
+          <div class="ge-section">
+            <label class="ge-label">制作公司</label>
+            <div class="ge-tag-row">
+              <input
+                v-model="companyInput"
+                type="text"
+                class="ge-tag-input"
+                placeholder="输入公司名"
+                @keyup.enter="addCompany"
+              />
+              <button type="button" class="ge-tag-add-btn" @click="addCompany">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            <div v-if="form.company.length" class="ge-tag-list">
+              <span v-for="(c, i) in form.company" :key="i" class="ge-tag-item">
+                {{ c }}
+                <button type="button" class="ge-tag-remove" @click="removeCompany(i)">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <!-- Screenshots -->
+          <div class="ge-section">
+            <label class="ge-label">游戏截图</label>
+            <div class="ge-screenshots-thumbs">
+              <div
+                v-for="(img, idx) in imagesBase64"
+                :key="idx"
+                class="ge-screenshot-thumb"
               >
-                <div v-if="coverPreview" class="cover-box">
-                  <el-image :src="coverPreview" fit="cover" class="cover-img" />
-                  <div class="cover-mask">
-                    <el-icon :size="16"><RefreshLeft /></el-icon>
-                    <span>更换封面</span>
-                  </div>
-                </div>
-                <div v-else class="cover-placeholder">
-                  <el-icon :size="26"><Plus /></el-icon>
-                  <span>上传 2:3 封面</span>
-                </div>
-              </el-upload>
-              <p class="f-hint">2:3 竖版封面：首页卡片与详情页主视觉均使用该比例，后端统一转为 WebP（≤5MB）。</p>
-            </el-form-item>
-
-            <el-form-item label="游戏截图">
+                <el-image :src="img" fit="cover" />
+                <button type="button" class="ge-scr-remove" @click="imageFileList.splice(idx, 1); imageBase64Map.delete(String(imageFileList[idx]?.uid))">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
               <el-upload
-                v-model:file-list="imageFileList"
-                list-type="picture-card"
+                :show-file-list="false"
                 :auto-upload="false"
                 accept="image/*"
                 multiple
                 :on-change="onImagesChange"
-                :on-remove="onImagesRemove"
+                class="ge-scr-add-upload"
               >
-                <el-icon><Plus /></el-icon>
+                <button type="button" class="ge-scr-add-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
               </el-upload>
-              <p v-if="mode === 'edit'" class="f-hint">
-                编辑时新上传的截图将整体替换原截图；不上传新截图则保持原截图不变。
-              </p>
-            </el-form-item>
+            </div>
           </div>
 
-          <!-- 右侧：卡片预览 -->
-          <div class="preview-col">
-            <div class="preview-head">卡片预览</div>
-            <div class="preview-card">
-              <div class="preview-cover">
-                <el-image v-if="coverPreview" :src="coverPreview" fit="cover" class="preview-cover-img" />
-                <div v-else class="preview-cover-ph">
-                  <el-icon :size="22"><Picture /></el-icon>
-                  <span>封面占位</span>
+          <!-- Spacer -->
+          <div class="ge-spacer"></div>
+
+          <!-- Publish Button -->
+          <div class="ge-publish-area">
+            <button type="button" class="ge-publish-btn" :disabled="submitting" @click="handleSubmit">
+              <span v-if="submitting" class="ge-btn-spinner"></span>
+              <svg v-else class="ge-btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+              </svg>
+              {{ submitting ? '发布中...' : mode === 'add' ? '发布游戏' : '保存修改' }}
+            </button>
+          </div>
+
+          <!-- Auto-save -->
+          <div class="ge-auto-save">
+            <span v-if="isSaving" class="ge-as-saving">
+              <span class="ge-as-spinner"></span> 保存中...
+            </span>
+            <span v-else-if="lastSavedTime" class="ge-as-saved">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              草稿已保存
+            </span>
+            <span v-else class="ge-as-idle">草稿自动保存</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ===== Main Editor ===== -->
+      <main class="ge-editor">
+        <div class="ge-editor-inner">
+          <!-- Three Name Inputs -->
+          <div class="ge-name-grid">
+            <div class="ge-name-field">
+              <label class="ge-name-label">中文名 <span class="ge-label-desc">（选填）</span></label>
+              <input
+                v-model="form.cn_name"
+                type="text"
+                class="ge-name-input"
+                placeholder="简体中文名"
+                maxlength="50"
+              />
+              <div class="ge-name-underline"></div>
+            </div>
+            <div class="ge-name-field">
+              <label class="ge-name-label">日文名 <span class="ge-label-desc">（选填）</span></label>
+              <input
+                v-model="form.jp_name"
+                type="text"
+                class="ge-name-input"
+                placeholder="日文原名"
+                maxlength="50"
+              />
+              <div class="ge-name-underline"></div>
+            </div>
+            <div class="ge-name-field">
+              <label class="ge-name-label">英文名 <span class="ge-label-desc">（选填）</span></label>
+              <input
+                v-model="form.en_name"
+                type="text"
+                class="ge-name-input"
+                placeholder="英文名"
+                maxlength="50"
+              />
+              <div class="ge-name-underline"></div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="ge-divider"></div>
+
+          <!-- Description -->
+          <div class="ge-desc-section">
+            <label class="ge-name-label">游戏简介</label>
+            <p class="ge-desc-hint">介绍剧情、玩法与特色</p>
+            <textarea
+              v-model="form.content"
+              class="ge-desc-textarea"
+              placeholder="在这里描述游戏内容……"
+              rows="12"
+            ></textarea>
+          </div>
+
+          <!-- Card Preview (bottom of editor) -->
+          <div class="ge-preview-section">
+            <div class="ge-preview-header">
+              <span class="ge-preview-label">卡片预览</span>
+              <span class="ge-preview-note">发布后首页卡片效果</span>
+            </div>
+            <div class="ge-preview-card">
+              <div class="ge-preview-cover">
+                <el-image v-if="coverPreview" :src="coverPreview" fit="cover" class="ge-pc-img" />
+                <div v-else class="ge-pc-ph">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span>封面</span>
                 </div>
-                <span class="preview-new">新发布</span>
+                <span class="ge-pc-badge">新发布</span>
               </div>
-              <div class="preview-info">
-                <div class="preview-name" :title="previewName">{{ previewName }}</div>
-                <div v-if="previewSubNames.length" class="preview-subnames">
+              <div class="ge-pc-info">
+                <div class="ge-pc-name" :title="previewName">{{ previewName }}</div>
+                <div v-if="previewSubNames.length" class="ge-pc-subnames">
                   <span v-for="n in previewSubNames" :key="n">{{ n }}</span>
                 </div>
-                <div v-if="previewTags.length" class="preview-tags">
-                  <span v-for="t in previewTags" :key="t" class="p-tag">{{ t }}</span>
+                <div v-if="previewTags.length" class="ge-pc-tags">
+                  <span v-for="t in previewTags" :key="t" class="ge-pc-tag">{{ t }}</span>
                 </div>
               </div>
             </div>
-            <p class="preview-note">预览即首页游戏卡片样式，发布后自动生效。</p>
           </div>
         </div>
-
-        <div class="step-actions">
-          <el-button @click="emit('cancel')">取消</el-button>
-          <el-button @click="prevStep">上一步</el-button>
-          <el-button type="primary" native-type="submit" :loading="submitting">
-            {{ mode === 'add' ? '发布游戏' : '保存修改' }}
-          </el-button>
-        </div>
-      </section>
-    </el-form>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.mb {
-  margin-bottom: 16px;
+/* ============================================
+   Main Layout
+   ============================================ */
+.gal-form-wrap {
+  width: 100%;
 }
 
-/* ===== 单列居中分步向导 ===== */
-.gal-form-wrap {
-  max-width: 860px;
-  margin: 0 auto;
+.ge-layout {
+  display: flex;
+  gap: 0;
+  background: rgba(24, 24, 31, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* ============================================
+   Sidebar
+   ============================================ */
+.ge-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 2rem;
+  align-self: flex-start;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.ge-sidebar-inner {
+  padding: 1.5rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  min-height: 100%;
+  gap: 0.125rem;
 }
 
-/* 步骤指示器：居中对称 */
-.steps-bar {
-  margin-bottom: 4px;
-  display: flex;
-  justify-content: center;
-}
-/* 步骤标签强制不换行，即使空间紧凑也在一行 */
-.steps-bar :deep(.el-step__title) {
-  white-space: nowrap;
+.ge-sidebar-header {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* 分区卡片 */
-.f-section {
-  background: var(--fish-bg-2);
-  border: 1px solid var(--fish-border);
-  border-radius: var(--fish-radius);
-  padding: 24px;
-}
-.f-section + .f-section {
-  margin-top: 32px;
-}
-.f-section-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 4px;
-  font-size: 16px;
+.ge-sidebar-title {
+  font-size: 0.75rem;
   font-weight: 700;
-  color: var(--fish-text-1);
-}
-.f-section-title::before {
-  content: '';
-  width: 4px;
-  height: 15px;
-  border-radius: 3px;
-  background: var(--fish-accent);
-  flex-shrink: 0;
-}
-.f-section-desc {
-  margin: 0 0 18px;
-  font-size: 12px;
   color: var(--fish-text-3);
-  line-height: 1.6;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0 16px;
-}
-.f-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--fish-text-3);
-  line-height: 1.6;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
 }
 
-/* 平台 chips */
-.platform-chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.ge-section {
+  margin-bottom: 1rem;
 }
-.p-chip {
-  padding: 7px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--fish-border);
-  background: var(--fish-bg);
-  color: var(--fish-text-2);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-}
-.p-chip:hover {
-  color: var(--fish-accent);
-  border-color: var(--fish-accent-border);
-}
-.p-chip.active {
-  background: var(--fish-accent-soft);
-  border-color: var(--fish-accent);
-  color: var(--fish-accent);
+
+.ge-label {
+  display: block;
+  font-size: 0.72rem;
   font-weight: 600;
+  color: var(--fish-text-2);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.02em;
 }
 
-/* 2:3 封面上传 */
-.cover-uploader :deep(.el-upload) {
-  border: 1px dashed var(--fish-border-strong);
-  border-radius: 10px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  background: var(--fish-bg);
-  display: inline-block;
+.ge-req {
+  color: var(--el-color-danger);
 }
-.cover-uploader :deep(.el-upload:hover) {
-  border-color: var(--fish-accent);
-  box-shadow: 0 0 0 3px var(--fish-accent-soft);
+
+.ge-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.65rem;
+  color: var(--fish-text-3);
+  line-height: 1.4;
 }
-.cover-box {
+
+/* ===== Cover Upload ===== */
+.ge-cover-zone {
+  width: 100%;
+}
+
+.ge-cover-preview {
   position: relative;
-  width: 200px;
+  width: 100%;
   aspect-ratio: 2 / 3;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--fish-bg);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: default;
 }
-.cover-img {
+
+.ge-cover-img {
   width: 100%;
   height: 100%;
   display: block;
 }
-.cover-mask {
+
+.ge-cover-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  background: rgba(11, 11, 15, 0.55);
-  color: #fff;
-  font-size: 12px;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.55);
   opacity: 0;
   transition: opacity 0.2s;
 }
-.cover-box:hover .cover-mask {
+
+.ge-cover-preview:hover .ge-cover-overlay {
   opacity: 1;
 }
-.cover-placeholder {
-  width: 200px;
-  aspect-ratio: 2 / 3;
+
+.ge-cover-replace :deep(.el-upload) {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.ge-cover-replace:hover {
+  color: #fff;
+}
+
+.ge-cover-remove {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(225, 29, 72, 0.7);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+}
+
+.ge-cover-remove:hover {
+  background: #E11D48;
+}
+
+.ge-cover-empty {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 0.5rem;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.ge-cover-empty:hover {
+  border-color: var(--fish-accent-border);
+  background: rgba(124, 123, 242, 0.04);
+}
+
+.ge-cover-upload-btn {
+  width: 100%;
+  height: 100%;
+}
+
+.ge-cover-upload-btn :deep(.el-upload) {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ge-cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
   color: var(--fish-text-3);
-  font-size: 13px;
+  font-size: 0.72rem;
 }
 
-/* ===== 步骤导航按钮 ===== */
-.step-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--fish-border);
+/* ===== Select ===== */
+.ge-input {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fish-text-1);
+  font-family: inherit;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  box-sizing: border-box;
 }
 
-/* ===== 封面与截图 + 卡片预览左右双栏（步骤 3） ===== */
-.cover-preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 24px;
-  align-items: start;
+.ge-input::placeholder {
+  color: var(--fish-text-3);
+  font-size: 0.75rem;
 }
-.cover-upload-col {
+
+.ge-input:hover {
+  border-color: rgba(124, 123, 242, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ge-input:focus {
+  border-color: var(--fish-accent);
+  box-shadow: 0 0 0 2px rgba(124, 123, 242, 0.1);
+}
+
+/* ===== Platform Chips ===== */
+.ge-chips {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
-.preview-col {
+
+.ge-chip {
+  flex: 1;
+  min-width: 60px;
+  padding: 0.4rem 0.3rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fish-text-3);
+  font-size: 0.7rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.ge-chip:hover {
+  color: var(--fish-accent);
+  border-color: rgba(124, 123, 242, 0.25);
+}
+
+.ge-chip.active {
+  background: rgba(124, 123, 242, 0.12);
+  border-color: var(--fish-accent);
+  color: var(--fish-accent);
+  font-weight: 600;
+}
+
+/* ===== Tag Input ===== */
+.ge-tag-row {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  position: sticky;
-  top: 80px;
+  gap: 0.35rem;
+  width: 100%;
 }
-.preview-head {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--fish-text-2);
-}
-.preview-card {
-  max-width: 280px;
-  background: var(--fish-bg-2);
-  border: 1px solid var(--fish-border);
-  border-radius: var(--fish-radius);
-  overflow: hidden;
-  box-shadow: var(--fish-shadow);
+
+.ge-tag-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fish-text-1);
+  font-family: inherit;
+  outline: none;
   transition: border-color 0.2s;
 }
-.preview-card:hover {
-  border-color: var(--fish-accent-border);
+
+.ge-tag-input::placeholder {
+  color: var(--fish-text-3);
+  font-size: 0.7rem;
 }
-.preview-cover {
+
+.ge-tag-input:focus {
+  border-color: rgba(124, 123, 242, 0.4);
+}
+
+.ge-tag-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  flex-shrink: 0;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fish-text-3);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  padding: 0;
+}
+
+.ge-tag-add-btn:hover {
+  color: var(--fish-accent);
+  border-color: rgba(124, 123, 242, 0.3);
+  background: rgba(124, 123, 242, 0.08);
+}
+
+.ge-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.ge-tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.3rem;
+  background: rgba(124, 123, 242, 0.08);
+  border: 1px solid rgba(124, 123, 242, 0.15);
+  color: var(--fish-accent);
+  font-size: 0.65rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.ge-tag-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.ge-tag-remove:hover {
+  opacity: 1;
+}
+
+/* ===== Screenshots ===== */
+.ge-screenshots-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ge-screenshot-thumb {
   position: relative;
-  aspect-ratio: 2 / 3;
+  width: 54px;
+  height: 54px;
+  border-radius: 0.35rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
   background: var(--fish-bg);
 }
-.preview-cover-img {
+
+.ge-screenshot-thumb :deep(.el-image) {
+  width: 100%;
+  height: 100%;
+}
+
+.ge-scr-remove {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  padding: 0;
+}
+
+.ge-screenshot-thumb:hover .ge-scr-remove {
+  opacity: 1;
+}
+
+.ge-scr-remove:hover {
+  background: #E11D48;
+}
+
+.ge-scr-add-upload :deep(.el-upload) {
+  display: flex;
+}
+
+.ge-scr-add-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 0.35rem;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--fish-text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  padding: 0;
+}
+
+.ge-scr-add-btn:hover {
+  border-color: var(--fish-accent-border);
+  color: var(--fish-accent);
+}
+
+/* ===== Spacer ===== */
+.ge-spacer {
+  flex: 1;
+  min-height: 0.75rem;
+}
+
+/* ===== Publish Button ===== */
+.ge-publish-area {
+  margin-bottom: 0.5rem;
+}
+
+.ge-publish-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  background: var(--fish-accent);
+  border: none;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  line-height: 1;
+}
+
+.ge-publish-btn:hover:not(:disabled) {
+  background: #8F8EF5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(124, 123, 242, 0.25);
+}
+
+.ge-publish-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.ge-publish-btn:disabled {
+  background: rgba(124, 123, 242, 0.35);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.ge-btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ge-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.ge-btn-icon {
+  flex-shrink: 0;
+}
+
+@keyframes ge-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Auto Save ===== */
+.ge-auto-save {
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+}
+
+.ge-as-saving {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  color: var(--fish-accent);
+  font-weight: 500;
+}
+
+.ge-as-spinner {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(124, 123, 242, 0.2);
+  border-top-color: var(--fish-accent);
+  border-radius: 50%;
+  animation: ge-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.ge-as-saved {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.65rem;
+  color: var(--el-color-success);
+  font-weight: 500;
+}
+
+.ge-as-idle {
+  font-size: 0.65rem;
+  color: var(--fish-text-3);
+  font-weight: 400;
+}
+
+/* ============================================
+   Main Editor
+   ============================================ */
+.ge-editor {
+  flex: 1;
+  min-width: 0;
+}
+
+.ge-editor-inner {
+  padding: 1.75rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ===== Name Grid ===== */
+.ge-name-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.ge-name-field {
+  position: relative;
+}
+
+.ge-name-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fish-text-2);
+  margin-bottom: 0.35rem;
+}
+
+.ge-label-desc {
+  font-weight: 400;
+  color: var(--fish-text-3);
+  font-size: 0.7rem;
+}
+
+.ge-name-input {
+  width: 100%;
+  padding: 0.55rem 0;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fish-text-1);
+  outline: none;
+  font-family: inherit;
+  transition: color 0.2s;
+}
+
+.ge-name-input::placeholder {
+  color: rgba(255, 255, 255, 0.15);
+  font-weight: 500;
+}
+
+.ge-name-underline {
+  height: 1.5px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border-radius: 1px;
+  transition: background 0.3s;
+  margin-top: 0;
+}
+
+.ge-name-input:focus ~ .ge-name-underline {
+  background: linear-gradient(to right, var(--fish-accent), rgba(124, 123, 242, 0.25));
+}
+
+/* ===== Divider ===== */
+.ge-divider {
+  height: 1px;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03), transparent);
+}
+
+/* ===== Description ===== */
+.ge-desc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ge-desc-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--fish-text-3);
+  line-height: 1.4;
+}
+
+.ge-desc-textarea {
+  width: 100%;
+  min-height: 280px;
+  padding: 0.75rem 0;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--fish-text-1);
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.ge-desc-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.12);
+}
+
+/* ===== Card Preview ===== */
+.ge-preview-section {
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ge-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ge-preview-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--fish-text-3);
+  letter-spacing: 0.03em;
+}
+
+.ge-preview-note {
+  font-size: 0.65rem;
+  color: var(--fish-text-3);
+}
+
+.ge-preview-card {
+  max-width: 240px;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+  transition: border-color 0.2s;
+}
+
+.ge-preview-card:hover {
+  border-color: rgba(124, 123, 242, 0.2);
+}
+
+.ge-preview-cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.ge-pc-img {
   width: 100%;
   height: 100%;
   display: block;
 }
-.preview-cover-ph {
+
+.ge-pc-ph {
   width: 100%;
   height: 100%;
   display: flex;
@@ -606,79 +1258,99 @@ function handleSubmit() {
   justify-content: center;
   gap: 6px;
   color: var(--fish-text-3);
-  font-size: 12px;
+  font-size: 0.65rem;
 }
-.preview-new {
+
+.ge-pc-badge {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  padding: 3px 8px;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(11, 11, 15, 0.72);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.65rem;
   font-weight: 500;
   backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  line-height: 1.3;
 }
-.preview-info {
-  padding: 12px 14px 14px;
+
+.ge-pc-info {
+  padding: 0.625rem 0.75rem;
 }
-.preview-name {
-  font-size: 14px;
+
+.ge-pc-name {
+  font-size: 0.8rem;
   font-weight: 600;
-  line-height: 1.4;
   color: var(--fish-text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.preview-subnames {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--fish-text-3);
-}
-.preview-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.p-tag {
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: var(--fish-accent-soft);
-  border: 1px solid var(--fish-accent-border);
-  color: var(--fish-accent);
-  font-size: 11px;
-}
-.preview-note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--fish-text-3);
-  line-height: 1.6;
+  line-height: 1.4;
 }
 
-/* ===== 响应式 ===== */
-@media (max-width: 768px) {
-  .gal-form-wrap {
-    padding: 0 4px;
+.ge-pc-subnames {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 3px;
+  font-size: 0.68rem;
+  color: var(--fish-text-3);
+}
+
+.ge-pc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ge-pc-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(124, 123, 242, 0.08);
+  border: 1px solid rgba(124, 123, 242, 0.12);
+  color: var(--fish-accent);
+  font-size: 0.6rem;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 960px) {
+  .ge-layout {
+    flex-direction: column;
   }
-  .step-actions {
-    flex-wrap: wrap;
-  }
-  .step-actions .el-button {
-    flex: 1;
-    min-width: 0;
-  }
-  .cover-preview-grid {
-    grid-template-columns: 1fr;
-  }
-  .preview-col {
+
+  .ge-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ge-sidebar-inner {
+    padding: 1.25rem;
+    min-height: auto;
+  }
+
+  .ge-spacer {
+    display: none;
+  }
+
+  .ge-editor-inner {
+    padding: 1.25rem;
+  }
+
+  .ge-name-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .ge-preview-card {
+    max-width: 200px;
   }
 }
 </style>

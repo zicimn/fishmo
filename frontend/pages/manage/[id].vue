@@ -71,16 +71,11 @@ async function handleDelete() {
     </header>
 
     <el-skeleton v-if="pending" :rows="6" animated />
-    <el-result
-      v-else-if="error"
-      icon="error"
-      title="加载失败"
-      sub-title="游戏可能不存在或后端未跑通"
-    >
-      <template #extra>
-        <el-button @click="refresh">重试</el-button>
-      </template>
-    </el-result>
+    <div v-else-if="error" class="empty-img">
+      <img src="/status/1.png" alt="加载失败" />
+      <p>加载失败，请稍后重试</p>
+      <el-button size="small" @click="refresh">重试</el-button>
+    </div>
 
     <template v-else-if="game">
       <el-alert
@@ -142,5 +137,23 @@ async function handleDelete() {
 .delete-zone {
   display: flex;
   justify-content: flex-end;
+}
+.empty-img {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+}
+.empty-img img {
+  width: 240px;
+  max-width: 70%;
+  border-radius: 12px;
+  opacity: 0.85;
+}
+.empty-img p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--fish-text-3);
 }
 </style>

@@ -34,12 +34,18 @@ export function useUserCommentList(
   )
 }
 
-/** 发表评论（需登录，game_id 走 query），type 支持 "galgame" | "article" */
-export async function addComment(targetId: number, content: string, type = 'galgame') {
+/** 发表评论（需登录），支持顶级评论与嵌套回复，type 支持 "galgame" | "article" */
+export async function addComment(
+  targetId: number,
+  content: string,
+  type = 'galgame',
+  parentId?: number | null,
+  replyToId?: number | null,
+) {
   return api<{ msg: string; id: number }>('/api/v1/comment/add', {
     method: 'POST',
     query: cleanParams({ game_id: targetId, type }),
-    body: { content },
+    body: cleanParams({ content, parent_id: parentId, reply_to_id: replyToId }),
   })
 }
 

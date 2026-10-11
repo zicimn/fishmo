@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { CommentItems } from '~/types'
+import type { NestedCommentItems } from '~/types'
 import { useUserCommentList, editComment, deleteComment } from '~/composables/useComment'
 import { useAuthStore } from '~/stores/auth'
 import { getErrDetail } from '~/utils/request'
@@ -21,7 +21,7 @@ const dialog = ref(false)
 const saving = ref(false)
 const form = reactive({ id: 0, content: '' })
 
-function openEdit(entry: CommentItems) {
+function openEdit(entry: NestedCommentItems) {
   form.id = entry.item.id
   form.content = entry.item.content || ''
   dialog.value = true
@@ -45,7 +45,7 @@ async function submitEdit() {
   }
 }
 
-async function handleDelete(entry: CommentItems) {
+async function handleDelete(entry: NestedCommentItems) {
   try {
     await ElMessageBox.confirm('确定删除该评论吗？', '提示', { type: 'warning' })
   } catch {

@@ -64,7 +64,7 @@ const bgList = computed(() => {
 
 // 默认背景：2.png
 const defaultBg = computed(() => {
-  const found = bgList.value.find((img) => img.name === '2.png')
+  const found = bgList.value.find((img: { name: string; url: string }) => img.name === '2.png')
   return found?.url || null
 })
 

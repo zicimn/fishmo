@@ -16,6 +16,7 @@ onMounted(() => {
 const isLoggedIn = computed(() => !!auth.token)
 const showProfile = computed(() => isMounted.value && isLoggedIn.value)
 const showLogin = computed(() => !isMounted.value || !isLoggedIn.value)
+const showAdmin = computed(() => isMounted.value && isLoggedIn.value && auth.isAdmin)
 
 const searchQuery = ref('')
 const searchType = ref<SearchTypeValue>('name')
@@ -34,6 +35,19 @@ const alphaVal = ref(30)
 const shadowIntensity = ref(100)
 const selectedBg = ref<string | null>(null)
 
+// 设置面板关闭时重置状态
+watch(settingsOpen, (open: boolean) => {
+  if (!open) {
+    activeMenu.value = 'appearance'
+  }
+})
+
+// 点击"管理"菜单项：关闭设置面板并跳转到管理页面
+function goToAdmin() {
+  settingsOpen.value = false
+  navigateTo('/admin')
+}
+
 // 静态发现 public/background/ 下的图片（SSR 安全，仅客户端生成 URL）
 const bgImages = import.meta.glob<string>('/public/background/*.{jpg,jpeg,png,webp,avif}', {
   query: '?url',
@@ -46,6 +60,12 @@ const bgList = computed(() => {
     name: k.split('/').pop() || k,
     url: bgImages[k],
   }))
+})
+
+// 默认背景：2.png
+const defaultBg = computed(() => {
+  const found = bgList.value.find((img) => img.name === '2.png')
+  return found?.url || null
 })
 
 function toggleSettings() {
@@ -152,6 +172,10 @@ onMounted(() => {
     if (sbg) {
       selectedBg.value = sbg
       applyBackground(sbg)
+    } else if (defaultBg.value) {
+      // 无保存的背景设置时，使用默认背景 2.png
+      selectedBg.value = defaultBg.value
+      applyBackground(defaultBg.value)
     }
   } catch {
     /* localStorage 不可用时静默 */
@@ -196,11 +220,11 @@ function closeNav() {
     <!-- ===== 固定顶栏导航 ===== -->
     <header class="topbar">
       <div class="topbar-inner">
-        <NuxtLink to="/" class="brand" aria-label="和泉的小站 首页">
+        <NuxtLink to="/" class="brand" aria-label="fishmo 首页">
           <span class="brand-mark">
-            <img src="/favicon.ico" alt="和泉的小站" class="brand-icon" />
+            <img src="/favicon.ico" alt="fishmo" class="brand-icon" />
           </span>
-          <span class="brand-text">和泉的小站</span>
+          <span class="brand-text">fishmo</span>
         </NuxtLink>
 
         <nav class="nav-links" @click="closeNav">
@@ -214,6 +238,7 @@ function closeNav() {
             <el-icon><Document /></el-icon>
             文章
           </NuxtLink>
+          <NuxtLink to="/about" class="nav-link" exact-active-class="is-active">关于</NuxtLink>
           <NuxtLink v-if="showProfile" to="/publish" class="nav-link" exact-active-class="is-active">
             发布
           </NuxtLink>
@@ -306,6 +331,16 @@ function closeNav() {
                     <el-icon><Picture /></el-icon>
                     背景
                   </button>
+                  <div v-if="showAdmin" class="settings-menu-divider" />
+                  <button
+                    v-if="showAdmin"
+                    class="settings-menu-item settings-menu-item--admin"
+                    @click="goToAdmin"
+                  >
+                    <el-icon><SetUp /></el-icon>
+                    管理
+                    <el-icon class="admin-arrow"><ArrowRight /></el-icon>
+                  </button>
                 </aside>
 
                 <!-- 右侧内容 -->
@@ -373,6 +408,7 @@ function closeNav() {
                       </button>
                     </div>
                   </template>
+
                 </div>
               </div>
             </el-dialog>
@@ -417,6 +453,7 @@ function closeNav() {
           <el-icon><Document /></el-icon>
           文章
         </NuxtLink>
+        <NuxtLink to="/about" class="nav-link" exact-active-class="is-active" @click="closeNav">关于</NuxtLink>
         <NuxtLink v-if="showProfile" to="/publish" class="nav-link" exact-active-class="is-active">
           发布
         </NuxtLink>
@@ -433,7 +470,7 @@ function closeNav() {
     </main>
 
     <footer class="layout-footer">
-      <p>和泉的小站 · 美少女游戏信息站</p>
+      <p>fishmo · 美少女游戏信息站</p>
     </footer>
   </div>
 </template>
@@ -777,6 +814,34 @@ function closeNav() {
   flex-shrink: 0;
 }
 
+/* 管理菜单项上方分隔线 */
+.settings-menu-divider {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--fish-border);
+}
+
+.settings-menu-item--admin {
+  color: var(--el-color-warning);
+}
+
+.settings-menu-item--admin:hover {
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--el-color-warning);
+}
+
+.admin-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.settings-menu-item--admin:hover .admin-arrow {
+  transform: translateX(2px);
+  opacity: 1;
+}
+
 /* 右侧内容 */
 .settings-content {
   flex: 1;
@@ -1106,7 +1171,7 @@ function closeNav() {
 
   .settings-dialog {
     width: calc(100vw - 32px) !important;
-    max-width: 400px;
+    max-width: 480px;
   }
 
   .settings-sidebar {

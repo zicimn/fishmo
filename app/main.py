@@ -1,4 +1,5 @@
 import os
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.service import user_router, email_router, gal_router, link_router, comment_router, favorite_router, search_router, article_router
 from api.admin import control_router

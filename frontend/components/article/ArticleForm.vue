@@ -30,7 +30,6 @@ const coverBase64 = ref('')
 const coverPreview = ref(props.initial?.cover || '')
 const imagesBase64 = ref<string[]>(props.initial?.images || [])
 const showPreview = ref(false)
-const categoryInput = ref('')
 
 const CATEGORY_OPTIONS = [
   '游戏评测',
@@ -60,7 +59,6 @@ function loadDraft() {
     categoryList.value = d.categoryList || []
     lastSavedTime.value = d.savedTime || ''
     if (d.coverPreview) coverPreview.value = d.coverPreview
-    categoryInput.value = d.categoryInput || ''
   } catch { /* ignore */ }
 }
 
@@ -75,7 +73,6 @@ function saveDraft() {
       tagList: tagList.value,
       categoryList: categoryList.value,
       coverPreview: coverPreview.value.startsWith('data:') ? coverPreview.value : '',
-      categoryInput: categoryInput.value,
       savedTime: new Date().toLocaleString(),
     }
     localStorage.setItem(DRAFT_KEY, JSON.stringify(d))
@@ -89,7 +86,7 @@ function clearDraft() {
   lastSavedTime.value = ''
 }
 
-watch([title, content, tagList, categoryList, categoryInput], () => { saveDraft() }, { deep: true })
+watch([title, content, tagList, categoryList], () => { saveDraft() }, { deep: true })
 
 onMounted(() => {
   loadDraft()
@@ -114,22 +111,6 @@ function addTag() {
 
 function removeTag(idx: number) {
   tagList.value.splice(idx, 1)
-}
-
-// ===== Category =====
-function addCategory() {
-  const c = categoryInput.value.trim()
-  if (!c) return
-  if (categoryList.value.includes(c)) {
-    ElMessage.warning('分类已存在')
-    return
-  }
-  categoryList.value.push(c)
-  categoryInput.value = ''
-}
-
-function removeCategory(idx: number) {
-  categoryList.value.splice(idx, 1)
 }
 
 // ===== Cover =====
@@ -254,26 +235,21 @@ const renderedContent = computed(() => {
           <!-- Category -->
           <div class="ae-section">
             <label class="ae-label">分类 <span class="ae-req">*</span></label>
-            <div class="ae-tag-row">
-              <input
-                v-model="categoryInput"
-                type="text"
-                class="ae-tag-input"
-                placeholder="输入分类后添加"
-                @keyup.enter="addCategory"
+            <el-select
+              v-model="categoryList"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="选择分类"
+              class="ae-category-select"
+            >
+              <el-option
+                v-for="opt in CATEGORY_OPTIONS"
+                :key="opt"
+                :label="opt"
+                :value="opt"
               />
-              <button type="button" class="ae-tag-add" @click="addCategory">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              </button>
-            </div>
-            <div v-if="categoryList.length" class="ae-tag-list">
-              <span v-for="(c, i) in categoryList" :key="i" class="ae-tag-item">
-                {{ c }}
-                <button type="button" class="ae-tag-remove" @click="removeCategory(i)">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </span>
-            </div>
+            </el-select>
           </div>
 
           <!-- Tags -->
@@ -562,7 +538,60 @@ const renderedContent = computed(() => {
   line-height: 1.4;
 }
 
-/* ===== Category ===== */
+/* ===== Category Select ===== */
+.ae-category-select {
+  width: 100%;
+}
+
+.ae-category-select :deep(.el-select__wrapper) {
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  transition: border-color 0.2s;
+}
+
+.ae-category-select :deep(.el-select__wrapper:hover),
+.ae-category-select :deep(.el-select__wrapper.is-hovering) {
+  border-color: rgba(124, 123, 242, 0.25);
+}
+
+.ae-category-select :deep(.el-select__wrapper.is-focused) {
+  border-color: rgba(124, 123, 242, 0.35);
+  box-shadow: 0 0 0 2px rgba(124, 123, 242, 0.1);
+}
+
+.ae-category-select :deep(.el-select__selected-item) {
+  font-size: 0.72rem;
+  color: var(--fish-text-1);
+}
+
+.ae-category-select :deep(.el-select__placeholder) {
+  font-size: 0.72rem;
+  color: var(--fish-text-3);
+}
+
+.ae-category-select :deep(.el-select__placeholder.is-transparent) {
+  color: var(--fish-text-3);
+}
+
+.ae-category-select :deep(.el-tag) {
+  --el-tag-bg: rgba(124, 123, 242, 0.1);
+  --el-tag-border-color: rgba(124, 123, 242, 0.15);
+  --el-tag-text-color: var(--fish-accent);
+  font-size: 0.65rem;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 0.25rem;
+}
+
+.ae-category-select :deep(.el-select__caret) {
+  color: var(--fish-text-3);
+  font-size: 12px;
+}
+
 /* ===== Tags ===== */
 .ae-tag-row {
   display: flex;

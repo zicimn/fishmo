@@ -10,3 +10,4 @@ frontend/public/background/
 frontend/public/status/
 logs/
 version/
+frontend/.nuxt/dist/

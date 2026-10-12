@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Article 域**：文章发布（Markdown 编辑器）、文章列表（分类筛选/分页）、文章详情（Markdown 渲染 + 插图画廊 + 评论区），以及个人文章管理。
 
-前端（Nuxt 3 + Element Plus）具有完整业务页面：首页（精选 Hero + 文章弹出面板）、全部游戏、全部文章、游戏详情、文章详情、发布游戏/文章、个人中心、管理员控制台，以及**设置面板**（外观/背景主题调节）。
+前端（Nuxt 3 + Element Plus）具有完整业务页面：首页（精选 Hero + 文章弹出面板）、全部游戏、全部文章、游戏详情、文章详情、发布游戏/文章、个人中心、管理员控制台、**关于页面**，以及**设置面板**（外观/背景主题调节 + 管理入口）。
 
 技术栈：**Python 3.11+ / FastAPI 0.133 / SQLAlchemy 2.0 异步 / aiomysql / Pydantic v2 / python-jose(JWT) / passlib(argon2) / redis.asyncio / cloudinary（图片上传） / Nuxt 3 / Vue 3 / TypeScript / Element Plus / Pinia / markdown-it + DOMPurify**。代码注释为中文。
 
@@ -66,9 +66,11 @@ backend/app/
 frontend/
   pages/                     — 页面：index（首页）/ games（游戏列表）/ articles（文章列表）/ user（登录注册）/ admin（控制台）/
                                 publish（发布游戏）/ galgame/[id]（游戏详情）/ article/[id]（文章详情）/
-                                manage/index（管理） / manage/[id]（编辑游戏）/ manage/article/[id]（编辑文章）
-  components/                — 组件：article/（ArticleForm 发布表单、ArticlePopup 首页弹出面板）、
-                                comment/CommentList.vue（评论列表，支持 galgame + article 双类型）、
+                                manage/index（管理） / manage/[id]（编辑游戏）/ manage/article/[id]（编辑文章）/
+                                about（关于页面）
+  components/                — 组件：admin/（AdminControl 管理控制台组件，可供 admin 页面复用）、
+                                article/（ArticleForm 发布表单、ArticlePopup 首页弹出面板）、
+                                comment/CommentList.vue（评论列表，支持 galgame + article 双类型 + 嵌套 2 层回复）、
                                 galgame/（GalgameForm 发布表单、GameCard 游戏卡片）、
                                 link/（LinkList、LinkManage）、manage/（MyGames、MyArticles、MyComments、MyLinks）、
                                 user/（MyFavorites、ProfileForm）
@@ -90,7 +92,7 @@ frontend/
 | `api/service/email.py` | `/api/v1/email` | send |
 | `api/service/galgame.py` | `/api/v1/galgame` | index(列表) / visit(详情) / rvisit(随机) / add / delete / edit |
 | `api/service/link.py` | `/api/v1/link` | get_list(按游戏) / get_list_by_user / add / review(编辑) / delete |
-| `api/service/comment.py` | `/api/v1/comment` | get_list(按目标, 支持 ?type=galgame\|article) / get_list_by_user / add / edit / delete |
+| `api/service/comment.py` | `/api/v1/comment` | get_list(按目标, 支持 ?type=galgame\|article, 仅顶级评论分页+嵌套子评论) / get_list_by_user(扁平结构) / add(支持 parent_id/reply_to_id 嵌套回复) / edit / delete |
 | `api/service/favorite.py` | `/api/v1/favorite` | add / remove / visit(检查是否收藏) / list |
 | `api/service/search.py` | `/api/v1/search` | search |
 | `api/service/article.py` | `/api/v1/article` | index(列表, 支持 ?category) / visit(详情) / manage(个人管理) / add / edit / delete |
@@ -98,7 +100,7 @@ frontend/
 
 平台即用户：`delete`/`edit` 必须校验 `author_id == 当前用户`，非作者返回 403。删除用户时若其下有作品（galgame/article），外键 `ondelete="RESTRICT"` 触发 `IntegrityError`，`user.py` 已捕获返回 400。
 
-### 评论多态（receive_type）
+### 评论多态（receive_type）与嵌套评论
 
 评论系统通过 `receive_type` 字段实现多态，支持同时为 galgame 和 article 两个业务域服务：
 
@@ -106,6 +108,15 @@ frontend/
 - `ReceiveEnum.galgame = 1` → 游戏评论
 
 评论列表端点 `GET /api/v1/comment/{target_id}?type=galgame|article` 根据 type 参数设置 `receive_type` 过滤。添加评论时同理。ORM 层面 `receive_id` 为裸 Integer（无外键约束），兼容多态目标。
+
+**嵌套评论（2 层）**：
+
+- **模型字段**（`model/comment.py`）：`parent_id`（自引用外键 `ForeignKey("comment.id", ondelete="CASCADE")`，`None` 表示顶级评论）、`reply_to_id`（被回复评论的作者 user_id，`None` 表示非回复）、`replies` 关系（`lazy="raise"`，需显式 `selectinload`）。
+- **2 层限制**：`add` 端点校验 `parent_id` 指向的父评论必须为顶级评论（`parent_comment.parent_id is None`），否则返回 400 `"不允许超过 2 层嵌套"`。
+- **`reply_to_id` 解析**：前端传的是被回复评论的 **评论 ID**，后端 `add` 端点自动查询该评论并将其 `author_id` 写入 `reply_to_id` 字段（即存储的是 user_id 而非 comment_id）。
+- **列表查询策略**：`get_list` 仅查询顶级评论（`parent_id IS NULL`）并分页，使用 `selectinload(Comment.replies).selectinload(Comment.author)` 批量加载子评论（避免 N+1），子评论按 `created_at` 正序排列。
+- **响应结构**：`CommentList.items` 为 `NestedCommentItems[]`（含 `replies: CommentItems[]` + `reply_count`）；`UserCommentList`（个人评论管理）保持扁平 `CommentItems[]` 结构，不含嵌套。
+- **数据库迁移**：需要 `ALTER TABLE comment ADD COLUMN parent_id INT NULL`（外键 `comment.id`，级联删除）和 `ADD COLUMN reply_to_id INT NULL`。
 
 ### 浏览量计数
 
@@ -122,7 +133,7 @@ frontend/
 - `get_db()` 是一个 yield 依赖：正常自动 commit、异常回滚并重新抛出、finally 关闭会话。所有端点通过 `db: AsyncSession = Depends(get_db)` 注入。
 - **连接串来自环境变量**：`db.py` 用 `from config.security import ASYNC_DATABASE_URL`（非硬编码）；变量由 `backend/app/.env` 提供（`security.py` 的 `load_dotenv()` 按 CWD 加载，故须在 `backend/app` 下运行）。
 - **无 Alembic 迁移**：所有表需手动创建。
-- **关系加载**：集合侧（`.galgames` / `.links` / `.comments` / `.favorites` / `.articles`）均为 `lazy="raise"`——**任何查询都不应隐式全量加载关联集合**，需要时显式 `selectinload()`；多对一侧（`.author` / `.galgame`）保持 `lazy="selectin"`。
+- **关系加载**：集合侧（`.galgames` / `.links` / `.comments` / `.favorites` / `.articles` / `.replies`）均为 `lazy="raise"`——**任何查询都不应隐式全量加载关联集合**，需要时显式 `selectinload()`；多对一侧（`.author` / `.galgame`）保持 `lazy="selectin"`。
 
 ### 共享枚举（model/enums.py）
 
@@ -135,13 +146,13 @@ frontend/
 - **路由守卫**：`middleware/auth.ts`（登录守卫）、`middleware/admin.ts`（管理员守卫，客户端判断，SSR 阶段放行）。
 - **类型对齐**：`types/` 下的 TypeScript 类型与后端 `schemas/` 严格对齐，枚举传输中文值（如 `"电脑端"`、`"剧情向"`）。
 - **前端请求代理**：`nuxt.config.ts` 的 `routeRules: { '/api/**': { proxy: process.env.NUXT_API_BASE || 'http://localhost:8000' } }`，前后端开发时通过 Nitro 代理规避 CORS。`utils/request.ts` 的 `api()` 自动附加 `Authorization` 头、401 时清理登录态并跳转。
-- **设置面板与背景系统**：`layouts/default.vue` 内嵌 `el-dialog` 设置面板（左右结构：菜单侧栏 + 内容区），外观 Tab 控制 `--fish-brightness`/`--fish-alpha`/`--fish-shadow-intensity` CSS 变量，背景 Tab 用 `import.meta.glob` 发现 `public/background/` 图片并设置 `--fish-bg-image`。所有设置持久化到 localStorage。
+- **设置面板与背景系统**：`layouts/default.vue` 内嵌 `el-dialog` 设置面板（左右结构：菜单侧栏 + 内容区），外观 Tab 控制 `--fish-brightness`/`--fish-alpha`/`--fish-shadow-intensity` CSS 变量，背景 Tab 用 `import.meta.glob` 发现 `public/background/` 图片并设置 `--fish-bg-image`。所有设置持久化到 localStorage。**默认背景**：`defaultBg` 计算属性查找 `public/background/2.png`，`onMounted` 中用户无保存背景设置时自动应用。**管理入口**：设置面板侧栏底部新增"管理"菜单项（仅管理员可见，带分隔线与 ArrowRight 跳转图标），点击关闭设置面板并跳转 `/admin`。
 - **卡片透明化**：GameCard、MyGames、MyArticles 等卡片设置 `background: transparent`，露出 body 的背景图片与深色遮罩层。
 - **状态插图**：错误/空状态统一使用 `public/status/1.png`（加载失败）或 `public/status/2.png`（空数据）。
 
 ### 导航栏链接
 
-顶栏导航包含：首页、全部游戏、随机（触发 `/api/v1/galgame/rvisit`）、文章（指向 `/articles`）、发布（登录后显示）、登录/注册（未登录显示）。移动端抽屉同步包含以上链接。
+顶栏导航包含：首页、全部游戏、随机（触发 `/api/v1/galgame/rvisit`）、文章（指向 `/articles`）、关于（指向 `/about`）、发布（登录后显示）、登录/注册（未登录显示）。移动端抽屉同步包含以上链接。
 
 ### 认证与安全（config/security.py、utils/verify_user.py）
 
@@ -157,6 +168,7 @@ frontend/
 - 提供 `get_from_cache` / `set_to_cache` / `delete_cache` / `delete_cache_pattern` / `get_cache_key`，以及基于版本计数器的版本化缓存失效模式（`get_search_version` / `update_version`）。
 - **版本计数按业务域拆分**：`GAL_VERSION_KEY` / `LINK_VERSION_KEY` / `COMMENT_VERSION_KEY` / `ARTICLE_VERSION_KEY`（全局 `SEARCH_VERSION_KEY` 保留向后兼容），某域增删改只自增该域版本号。
 - **约定**：列表/详情缓存 key 一律带 `version`；**任何增删改成功都必须 `await update_version(对应域KEY)` 并使相关 key 失效**，否则缓存继续服务旧数据。注意所有缓存函数均为 async，必须 `await`。
+- **评论缓存 key 格式**：列表 key 为 `get_cache_key("comments", receive_id=target_id, type=type, page=page, size=size, version=version)`；用户评论 key 为 `get_cache_key("comments_user", user_id=user_id, page=page, size=size, version=version)`。增删改后同时 `delete_cache_pattern("comments:*")` 和 `delete_cache_pattern("comments_user:*")` + `update_version(COMMENT_VERSION_KEY)`。
 
 ### 图片上传（utils/webp.py）
 
@@ -188,6 +200,11 @@ frontend/
 - **管理组件**（`components/manage/MyArticles.vue`）：小型卡片网格（仅 name + cover），编辑/删除按钮，类似 GameCard 风格。
 - **首页文章弹出面板**（`components/article/ArticlePopup.vue`）：4 列网格，快速浏览文章列表，入口指向 `/articles`。
 
+## 关于页面
+
+- **关于页面**（`pages/about.vue`）：网站介绍（fishmo — Galgame 信息发布社区与文章博客平台）、主要功能列表（发布游戏/分享文章/评论互动/收藏游戏）、技术栈标签、GitHub 开源链接（https://github.com/zicimn/fishmo）、联系邮箱（fwioe77@gmail.com）。纯静态页面，无后端接口依赖。
+- **管理控制台组件**（`components/admin/AdminControl.vue`）：独立的管理控制组件，封装待审核游戏列表 + 审核操作（通过/拒绝/删除），可供 admin 页面或其他管理界面复用。当前 `pages/admin/index.vue` 保留独立实现，二者逻辑一致。
+
 ## 已知限制（开发时需注意）
 
 1. **JWT 无过期时间**：`jwt.encode` 未带 `exp`，token 签发后永久有效。
@@ -198,3 +215,4 @@ frontend/
 6. **`logs/` 目录不应纳入版本控制**：需在 `.gitignore` 中添加 `logs/` 和 `*.log`。
 7. **无输入净化/XSS 防护**：评论内容、文章内容等用户输入字段在存储前未做 sanitize。前端仅通过 DOMPurify 在**渲染时**消毒 Markdown 输出，数据库层存储原始内容。如需 HTML 富文本场景，需补充后端 `sanitize_html()` 逻辑。
 8. **无边限流**：登录、评论、发送验证码等端点无防滥用限流，后续可在 `config/cache.py` 中补充 `rate_limit()` 后接入。
+9. **"查看全部回复"按钮为 UI 占位**：评论组件 `CommentList.vue` 中的"查看全部 N 条回复"按钮当前无实际分页加载逻辑（子评论一次性全部加载），仅作为后续分页加载的 UI 预留。

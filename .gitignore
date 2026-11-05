@@ -1,13 +1,23 @@
 .idea
 .env
+
+# --app--
 __pycache__/
 *.pyc
+
+# --web--
+web/.nuxt/
+web/.output/
+web/node_modules
+
+# --admin--
+admin/.nuxt/
+admin/.output/
+admin/node_modules
+
+# --other--
+docs/
 test/
-frontend/.nuxt
-frontend/.output
-frontend/node_modules
-frontend/public/background/
-frontend/public/status/
 logs/
 version/
-frontend/.nuxt/dist/
+nginx/

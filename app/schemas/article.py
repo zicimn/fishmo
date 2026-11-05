@@ -1,27 +1,21 @@
-from pydantic import BaseModel, Field, field_validator
 from typing import Any, List, Optional
-from .user import UserInfo
-from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
 
 
-class ArticleItem(BaseModel):
-    id: int
-    title: str
-    cover: str
-    category: str
-    comcnt: int
-    views: int
-    time: datetime
-
-
-class ArticleList(BaseModel):
-    total: int
-    items: List[ArticleItem]
+def _coerce_category(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return ",".join(str(item).strip() for item in value if str(item).strip())
+    return str(value)
 
 
 class ArticlePublish(BaseModel):
-    title: str
-    content: str
+    title: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
     cover: Optional[str] = None
     tag: Optional[List[str]] = None
     category: Optional[str] = None
@@ -29,48 +23,106 @@ class ArticlePublish(BaseModel):
 
     @field_validator("category", mode="before")
     @classmethod
-    def coerce_category(cls, v: Any) -> Optional[str]:
-        """
-        将前端发来的列表（string[]）转为逗号分隔字符串，与 ORM String(255) 兼容。
-        mode='before' 在 Pydantic 类型校验前执行，确保以下输入均可接受：
-          - []           → ""（空字符串）
-          - ["评测"]      → "评测"
-          - ["评测","攻略"] → "评测,攻略"
-          - None / 未传   → None（调用层再 fallback 为 ""）
-          - "评测"        → "评测"（直接字符串，兼容已有调用方）
-        """
-        if v is None:
-            return None
-        if isinstance(v, str):
-            return v
-        if isinstance(v, list):
-            return ",".join(v)
-        return str(v)
+    def coerce_category(cls, value: Any) -> Optional[str]:
+        return _coerce_category(value)
 
 
-class ArticleDetail(BaseModel):
-    id: int
-    title: str
-    content: str
+class ArticleEdit(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    content: Optional[str] = Field(default=None, min_length=1)
     cover: Optional[str] = None
     tag: Optional[List[str]] = None
-    category: List[str]
+    category: Optional[str] = None
     images: Optional[List[str]] = None
-    views: int
-    author_id: int
-    author_name: str
-    author_avatar: Optional[str] = None
-    comment_count: int
-    created_at: datetime
-    updated_at: datetime
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def coerce_category(cls, value: Any) -> Optional[str]:
+        return _coerce_category(value)
 
 
-class ArticleManageItem(BaseModel):
-    id: int
-    title: str
-    cover: str
+def split_category(value: Optional[str]) -> List[str]:
+    return [item for item in (value or "").split(",") if item]
 
 
-class ArticleManageList(BaseModel):
-    total: int
-    items: List[ArticleManageItem]
+def to_article_preview(
+    *,
+    article_id: int,
+    title: str,
+    cover: str,
+    category: Optional[str],
+    views: int,
+    comment_count: int,
+    created_at,
+    author_id: int,
+    author_name: str,
+    author_avatar: Optional[str],
+) -> dict:
+    return {
+        "id": article_id,
+        "title": title,
+        "cover": cover,
+        "category": split_category(category),
+        "views": views or 0,
+        "comcnt": comment_count or 0,
+        "created_at": created_at,
+        "time": created_at,
+        "author_id": author_id,
+        "author": author_name,
+        "avatar": author_avatar,
+    }
+
+
+def to_article_detail(
+    article: Any,
+    *,
+    author: Any,
+    views_total: int,
+    comment_count: int,
+) -> dict:
+    return {
+        "id": article.id,
+        "title": article.title,
+        "content": article.content,
+        "cover": article.cover,
+        "tag": article.tag or [],
+        "category": split_category(article.category),
+        "images": article.images or [],
+        "views": views_total,
+        "status": bool(article.status),
+        "author_id": article.author_id,
+        "author_name": author.username,
+        "author_avatar": author.avatar,
+        "comment_count": comment_count,
+        "created_at": article.created_at,
+        "updated_at": article.updated_at,
+    }
+
+
+def to_article_manage(article: Any) -> dict:
+    return {
+        "id": article.id,
+        "title": article.title,
+        "cover": article.cover,
+        "category": split_category(article.category),
+        "views": article.views or 0,
+        "status": bool(article.status),
+        "created_at": article.created_at,
+        "updated_at": article.updated_at,
+    }
+
+
+def to_admin_article(article: Any, *, author: Any) -> dict:
+    return {
+        "id": article.id,
+        "title": article.title,
+        "cover": article.cover,
+        "category": split_category(article.category),
+        "views": article.views or 0,
+        "status": bool(article.status),
+        "author_id": article.author_id,
+        "author": author.username,
+        "avatar": author.avatar,
+        "created_at": article.created_at,
+        "updated_at": article.updated_at,
+    }

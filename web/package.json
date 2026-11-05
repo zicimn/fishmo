@@ -1,0 +1,25 @@
+{
+  "name": "fishmo-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxi typecheck"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "nuxt": "^4.6.2",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/markdown-it": "^14.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vue-tsc": "^3.3.13"
+  }
+}

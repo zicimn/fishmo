@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+@theme {
+  /* 中文优先的字体栈：Inter 有则用，中文回落到系统字体 */
+  --font-sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  /* 外观设置（useAppearance 写入 documentElement） */
+  --fish-brightness: 1;
+  --fish-alpha: 0.6;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-950 text-white antialiased;
+  }
+
+  ::selection {
+    background: rgb(56 189 248 / 0.3);
+  }
+
+  /* 深色输入框的自动填充样式（Chrome 会给黄底白字） */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill {
+    -webkit-text-fill-color: #fff;
+    -webkit-box-shadow: 0 0 0 1000px #0f172a inset;
+    transition: background-color 9999s ease-out;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.12);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 255 255 / 0.2);
+  }
+}
+
+@layer components {
+  /* 玻璃卡片：全站最基础的面板材质 */
+  .glass-card {
+    @apply rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-2xl;
+    box-shadow: 0 12px 40px -16px rgb(2 6 23 / 0.9);
+  }
+
+  .glass-panel {
+    @apply rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-2xl;
+  }
+
+  .input-base {
+    @apply w-full rounded-xl border border-white/10 bg-slate-950/50 px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-white/20 focus:border-sky-300/40 focus:ring-2 focus:ring-sky-400/20;
+  }
+
+  .label-base {
+    @apply text-[11px] text-white/45;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-500/90 px-4 py-2.5 text-xs font-medium text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-xs text-white/70 transition hover:bg-white/[0.12] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-2.5 text-xs text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300;
+  }
+
+  .chip {
+    @apply shrink-0 rounded-full border border-white/10 px-3.5 py-1.5 text-xs text-white/50 transition hover:border-sky-300/30 hover:text-white/80;
+  }
+
+  .chip-active {
+    @apply border-sky-300/40 bg-sky-400/15 text-sky-100;
+  }
+
+  .section-kicker {
+    @apply text-[10px] uppercase tracking-[0.35em] text-white/30;
+  }
+}
+
+/* 卡片入场：配合 animation-delay 做错峰 */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.7s cubic-bezier(0.22, 0.68, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-rise {
+    animation: none;
+  }
+}
+
+/* ---------- 文章正文（Markdown 渲染结果，html:false 已禁用原始 HTML） ---------- */
+.article-content {
+  font-size: 0.9375rem;
+  line-height: 1.9;
+  color: rgb(255 255 255 / 0.75);
+  overflow-wrap: anywhere;
+}
+
+.article-content > * + * {
+  margin-top: 1.15em;
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4 {
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.8em;
+  scroll-margin-top: 6rem;
+}
+
+.article-content h1 {
+  font-size: 1.75rem;
+}
+
+.article-content h2 {
+  font-size: 1.4rem;
+}
+
+.article-content h3 {
+  font-size: 1.15rem;
+}
+
+.article-content a {
+  color: rgb(125 211 252);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.article-content strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.article-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem auto;
+  border-radius: 1rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.article-content ul,
+.article-content ol {
+  padding-left: 1.5rem;
+}
+
+.article-content ul {
+  list-style: disc;
+}
+
+.article-content ol {
+  list-style: decimal;
+}
+
+.article-content li + li {
+  margin-top: 0.35rem;
+}
+
+.article-content blockquote {
+  border-left: 2px solid rgb(125 211 252 / 0.5);
+  padding-left: 1rem;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.article-content code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+  background: rgb(2 6 23 / 0.6);
+  padding: 0.15em 0.4em;
+  border-radius: 0.35rem;
+}
+
+.article-content pre {
+  background: rgb(2 6 23 / 0.75);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+}
+
+.article-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.article-content hr {
+  border-color: rgb(255 255 255 / 0.1);
+  margin: 2rem 0;
+}
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.article-content th,
+.article-content td {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.article-content th {
+  background: rgb(255 255 255 / 0.05);
+  color: #fff;
+}
+
+/* ---------- 评论内容（后端 nh3 白名单消毒后的 HTML） ---------- */
+.comment-content {
+  overflow-wrap: anywhere;
+}
+
+.comment-content > * + * {
+  margin-top: 0.5em;
+}
+
+.comment-content a {
+  color: rgb(125 211 252);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.comment-content code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: rgb(2 6 23 / 0.6);
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+}
+
+.comment-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+/* 横向滚动的筛选条 / 列表隐藏滚动条 */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

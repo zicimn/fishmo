@@ -1,51 +1,68 @@
-import os
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from api.service import user_router, email_router, gal_router, link_router, comment_router, favorite_router, search_router, article_router
-from api.admin import control_router
-import uvicorn
+"""fishmo FastAPI 入口。
+
+包根是 ``app/``：所有命令都必须在 app 目录下运行（或把 app 加入 sys.path）。
+"""
+
 import logging
 from contextlib import asynccontextmanager
-from utils import shutdown_scheduler, start_scheduler
-from config import async_engine
 
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from api import service_router
+from config import CORS_ORIGINS, async_engine
+from utils import AppError, info, shutdown_scheduler, start_scheduler
 
 logger = logging.getLogger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时：仅启动定时任务（浏览量定时落库）。数据表已人工建好，不做建表。
     try:
         start_scheduler()
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.exception("启动定时任务失败，浏览量将不会定时落库")
     yield
-    # 关闭时：停止定时任务，释放连接池
     shutdown_scheduler()
     await async_engine.dispose()
 
-app = FastAPI(lifespan=lifespan)
 
-# 允许前端跨域访问
-cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000")
-cors_origins = [o.strip() for o in cors_origins_str.split(",") if o.strip()]
+app = FastAPI(
+    title="fishmo API",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(user_router)
-app.include_router(email_router)
-app.include_router(gal_router)
-app.include_router(link_router)
-app.include_router(comment_router)
-app.include_router(favorite_router)
-app.include_router(search_router)
-app.include_router(article_router)
-app.include_router(control_router)
+
+@app.exception_handler(AppError)
+async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    """业务异常统一转为 FastAPI 风格的 {"detail": "..."}。"""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.msg})
+
+
+app.include_router(service_router)
+
+
+@app.get("/api/health", tags=["health"])
+async def health():
+    return info("服务正常", data={"status": "ok"})
+
 
 if __name__ == "__main__":
-    uvicorn.run("main:app",reload=True,reload_excludes=["logs/*", "*.log", "__pycache__/*"])
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_excludes=["logs/*", "*.log", "__pycache__/*"],
+    )

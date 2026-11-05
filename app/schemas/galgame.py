@@ -1,33 +1,17 @@
-from pydantic import BaseModel, model_validator
-from typing import List, Optional
-from model.enums import PlatformEnum, CategoryEnum
+from typing import Any, List, Optional
 
+from pydantic import BaseModel, Field, model_validator
 
-class GalItem(BaseModel):
-    id: int
-    name: str
-    cover: str
-    views: int
-    author: str
-    # 作者头像可空：无头像的作者不能导致 Pydantic 校验 500
-    avatar: Optional[str] = None
-    # 作者 id：支持按用户过滤列表后，前端直接用于作者校验/管理入口判断
-    author_id: Optional[int] = None
-
-
-class GalList(BaseModel):
-    total: int
-    items: List[GalItem]
+from models.enums import CategoryEnum, PlatformEnum
 
 
 class AddGal(BaseModel):
-    name: Optional[str] = None
-    # 三个名称列保留兼容，可选
-    cn_name: Optional[str] = None
-    jp_name: Optional[str] = None
-    en_name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=50)
+    cn_name: Optional[str] = Field(default=None, max_length=50)
+    jp_name: Optional[str] = Field(default=None, max_length=50)
+    en_name: Optional[str] = Field(default=None, max_length=50)
 
-    content: Optional[str] = None
+    content: Optional[str] = Field(default=None, max_length=20000)
     company: Optional[List[str]] = None
     category: Optional[CategoryEnum] = None
     cover: str
@@ -36,26 +20,25 @@ class AddGal(BaseModel):
     platfrom: Optional[List[PlatformEnum]] = None
 
     @model_validator(mode="after")
-    def _normalize_names(self):
-        # 三列 NOT NULL 兜底空串，避免 NULL 入库触发 IntegrityError
-        self.cn_name = self.cn_name or ""
-        self.jp_name = self.jp_name or ""
-        self.en_name = self.en_name or ""
-        # name 优先用前端传入的值，否则从三名称派生
+    def normalize_names(self):
+        self.cn_name = (self.cn_name or "").strip()
+        self.jp_name = (self.jp_name or "").strip()
+        self.en_name = (self.en_name or "").strip()
+        self.name = (self.name or "").strip()
         if not self.name:
-            self.name = self.cn_name or self.jp_name or self.en_name or ""
+            self.name = self.cn_name or self.jp_name or self.en_name
         if not self.name:
             raise ValueError("name / cn_name / jp_name / en_name 至少填写一个")
         return self
 
 
 class EditGal(BaseModel):
-    name: Optional[str] = None
-    cn_name: Optional[str] = None
-    jp_name: Optional[str] = None
-    en_name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=50)
+    cn_name: Optional[str] = Field(default=None, max_length=50)
+    jp_name: Optional[str] = Field(default=None, max_length=50)
+    en_name: Optional[str] = Field(default=None, max_length=50)
 
-    content: Optional[str] = None
+    content: Optional[str] = Field(default=None, max_length=20000)
     company: Optional[List[str]] = None
     category: Optional[CategoryEnum] = None
     cover: Optional[str] = None
@@ -64,12 +47,86 @@ class EditGal(BaseModel):
     platfrom: Optional[List[PlatformEnum]] = None
 
 
-class GalBase(BaseModel):
-    id: int  # W2: 前端跳转需要游戏 id
-    name: str
-    cover: str
+def to_gal_item(
+    *,
+    gal_id: int,
+    name: str,
+    cover: str,
+    views: int,
+    author_id: int,
+    author_name: str,
+    author_avatar: Optional[str],
+    category: Optional[str] = None,
+    updated_at=None,
+    status: bool = True,
+) -> dict:
+    return {
+        "id": gal_id,
+        "name": name,
+        "cover": cover,
+        "views": views or 0,
+        "category": category,
+        "status": bool(status),
+        "author_id": author_id,
+        "author": author_name,
+        "avatar": author_avatar,
+        "updated_at": updated_at,
+    }
 
 
-class GalBaseList(BaseModel):
-    total: int  # W2: 列表总数
-    items: List[GalBase]
+def to_gal_detail(
+    gal: Any,
+    *,
+    author_name: str,
+    author_avatar: Optional[str],
+    views_total: int,
+    is_favorited: bool = False,
+) -> dict:
+    return {
+        "id": gal.id,
+        "name": gal.name,
+        "cn_name": gal.cn_name,
+        "jp_name": gal.jp_name,
+        "en_name": gal.en_name,
+        "content": gal.content,
+        "company": gal.company or [],
+        "category": gal.category,
+        "cover": gal.cover,
+        "images": gal.images or [],
+        "tag": gal.tag or [],
+        "views": views_total,
+        "likes": gal.likes or 0,
+        "favorite": gal.favorite or 0,
+        "is_favorited": is_favorited,
+        "platfrom": gal.platfrom or [],
+        "status": bool(gal.status),
+        "author_id": gal.author_id,
+        "author_name": author_name,
+        "author_avatar": author_avatar,
+        "created_at": gal.created_at,
+        "updated_at": gal.updated_at,
+    }
+
+
+def to_admin_gal(
+    gal: Any,
+    *,
+    author_name: str,
+    author_avatar: Optional[str],
+) -> dict:
+    return {
+        "id": gal.id,
+        "name": gal.name,
+        "cn_name": gal.cn_name,
+        "jp_name": gal.jp_name,
+        "en_name": gal.en_name,
+        "cover": gal.cover,
+        "category": gal.category,
+        "views": gal.views or 0,
+        "status": bool(gal.status),
+        "author_id": gal.author_id,
+        "author": author_name,
+        "avatar": author_avatar,
+        "created_at": gal.created_at,
+        "updated_at": gal.updated_at,
+    }

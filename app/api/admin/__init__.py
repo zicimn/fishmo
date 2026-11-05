@@ -1,1 +1,0 @@
-from .control import router as control_router

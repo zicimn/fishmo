@@ -4,215 +4,187 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概览
 
-`fishmo` 是一个 **galgame（美少女游戏）信息发布社区 + 文章博客** 全栈项目。后端核心业务涵盖两个业务域：
+`fishmo` 是 **Galgame 信息发布社区 + 文章博客** 的全栈项目，仓库由三个可独立运行的应用组成：
 
-**Galgame 域**：用户注册/登录、邮箱验证码、发布游戏（三名称/简介/封面/截图/标签/平台）、浏览量计数与 Redis 版本化缓存、随机游戏，以及围绕游戏的**链接分享**、**评论**、**收藏**三个扩展模块，外加**全文搜索**与**管理员审核**功能。
+| 应用 | 目录 | 端口 | 技术栈 |
+| --- | --- | --- | --- |
+| 后端 API | `app/` | 8000 | FastAPI 0.133 / SQLAlchemy 2.0 async / aiomysql / Pydantic v2 / Redis / APScheduler / Cloudinary / Resend |
+| 前台 Web | `frontend/` | 3000 | Nuxt 4 / Vue 3 / TypeScript / Tailwind CSS v4（SSR） |
+| 管理端 | `admin/` | 3001 | Nuxt 4 / Vue 3 / TypeScript / Tailwind CSS v4（SPA，`ssr: false`） |
 
-**Article 域**：文章发布（Markdown 编辑器）、文章列表（分类筛选/分页）、文章详情（Markdown 渲染 + 插图画廊 + 评论区），以及个人文章管理。
-
-前端（Nuxt 3 + Element Plus）具有完整业务页面：首页（精选 Hero + 文章弹出面板）、全部游戏、全部文章、游戏详情、文章详情、发布游戏/文章、个人中心、管理员控制台、**关于页面**，以及**设置面板**（外观/背景主题调节 + 管理入口）。
-
-技术栈：**Python 3.11+ / FastAPI 0.133 / SQLAlchemy 2.0 异步 / aiomysql / Pydantic v2 / python-jose(JWT) / passlib(argon2) / redis.asyncio / cloudinary（图片上传） / Nuxt 3 / Vue 3 / TypeScript / Element Plus / Pinia / markdown-it + DOMPurify**。代码注释为中文。
+业务域：用户与邮箱验证码；Galgame（发布/审核/搜索/浏览量/链接/评论/收藏）；文章（Markdown 发布、分类、插图、评论）。前台使用深色玻璃拟态设计，代码注释为中文。
 
 ## 常用命令
 
 ### 后端
 
-必须在 **`backend/app`** 目录下运行（所有模块都按此目录作为 import 根来组织）：
+必须在 **`app/`** 目录下运行（`app/` 是 import 根，模块导入均为绝对路径）：
 
 ```bash
-cd backend/app
-python main.py                          # 启动开发服务器（uvicorn + reload）
-# 或直接运行 uvicorn：
+cd app
+python main.py                         # 开发服务器（uvicorn + reload）
+# 或指定仓库根 venv：
+D:/vscode/fishmo/.venv/Scripts/python.exe main.py
+# 或直接：
 uvicorn main:app --reload
 ```
 
-Python 环境在仓库根的 `.venv` 中：
+依赖安装（仓库根）：
 
 ```bash
-D:/vscode/fishmo/.venv/Scripts/python.exe main.py
+.venv/Scripts/pip install -r requirements.txt
 ```
 
-**重要**：`main.py` 里的 `uvicorn.run("main:app", ...)` 使用模块字符串，从仓库根或 `backend/` 运行会报 `ModuleNotFoundError`。项目目前**没有**测试、lint 配置或 CI；`test/` 下是手动验证脚本，非 pytest。
+- `app/.env` 为必需文件（不提交）。必需变量：`SECRET_KEY`、`ASYNC_DATABASE_URL`、`RESEND_API_KEY`、`CLOUDINARY_API_KEY`、`CLOUDINARY_API_SECRET`、`CLOUDINARY_CLOUD_NAME`；可选：`REDIS_HOST/PORT/DB/PASSWORD`、`RESEND_FROM`、`CORS_ORIGINS`、`DB_ECHO`。缺少必填项会在启动时直接报错。
+- 健康检查 `GET /api/health`；OpenAPI 文档 `/docs`。
+- MySQL/Redis 为外部依赖。Redis 未启动时缓存、限流、验证码、JWT 黑名单会降级（见下文），但验证码注册与登出不可用。
+- **没有 pytest / lint / CI**。`test/` 下是手动验证脚本，不是自动化测试；改动后需手动调用接口验证。
 
-### 前端
+### 前台 / 管理端
 
 ```bash
-cd frontend
-npm install
-npm run dev                             # Nuxt 3 开发服务器
-npm run build                           # 生产构建（含 vue-tsc 类型检查）
-npx nuxi typecheck                      # 仅类型检查
+cd frontend && npm install
+npm run dev            # http://localhost:3000
+npm run build          # 生产构建
+npx nuxi typecheck     # 类型检查
+
+cd admin && npm install
+npm run dev            # http://localhost:3001
+npm run build
+npx nuxi typecheck
 ```
 
-> 接口清单与请求/响应格式见 `docs/router.md`；开发修改与报错记录见 `docs/fastapi_log.md`。
+管理端 `nuxt.config.ts` 支持 `NUXT_PUBLIC_API_BASE`（默认 `http://127.0.0.1:8000`）与 `NUXT_PUBLIC_SITE_BASE`（默认 `http://localhost:3000`）。前台 API 地址写在 `nuxt.config.ts`：开发直连 `127.0.0.1:8000`，生产（`$production`）浏览器走同源 `/api`。
 
-## 架构与分层约定
+### 部署
+
+`nginx/dev.fishmo.conf` 将 `/` 反代到 3000、`/api/` 反代到 8000，并直接服务 `_nuxt` 静态资源。管理端是独立 SPA，需要单独部署/反代其 3001 构建产物。生产 SQL 初始化脚本在 `sql/web1.sql`。
+
+## 后端架构
+
+### 请求链路与分层
 
 ```
-backend/app/
-  main.py                    — 应用入口：FastAPI 实例、CORS 中间件、include_router、lifespan（定时任务 + 引擎释放）
-  api/service/               — 路由层（每域独立文件）：user.py、email.py、galgame.py（含 rvisit 随机游戏）、
-                                link.py、comment.py、favorite.py、search.py、article.py
-  api/admin/                 — 管理员路由：control.py（审核/删除游戏，前缀 /api/admin/control）
-  config/                    — 基础设施配置：db.py（异步引擎/会话）、cache.py（Redis + 版本化缓存）、security.py（JWT + 环境变量）
-  model/                     — SQLAlchemy ORM 模型：user.py、galgame.py、link.py、comment.py、favorite.py、article.py、enums.py
-  schemas/                   — Pydantic v2 请求/响应模型：user.py、galgame.py、link.py、comment.py、article.py
-  utils/                     — email.py（Resend 验证码）、verify_user.py（JWT 校验 + 管理员校验）、
-                                webp.py（图片转换 + Cloudinary 上传）、counter.py（浏览量计数，含 Galgame + Article 双计数器）、
-                                scheduler.py（定时落库）
-  default/                   — 默认值：file.py（默认封面 URL）
-
-frontend/
-  pages/                     — 页面：index（首页）/ games（游戏列表）/ articles（文章列表）/ user（登录注册）/ admin（控制台）/
-                                publish（发布游戏）/ galgame/[id]（游戏详情）/ article/[id]（文章详情）/
-                                manage/index（管理） / manage/[id]（编辑游戏）/ manage/article/[id]（编辑文章）/
-                                about（关于页面）
-  components/                — 组件：admin/（AdminControl 管理控制台组件，可供 admin 页面复用）、
-                                article/（ArticleForm 发布表单、ArticlePopup 首页弹出面板）、
-                                comment/CommentList.vue（评论列表，支持 galgame + article 双类型 + 嵌套 2 层回复）、
-                                galgame/（GalgameForm 发布表单、GameCard 游戏卡片）、
-                                link/（LinkList、LinkManage）、manage/（MyGames、MyArticles、MyComments、MyLinks）、
-                                user/（MyFavorites、ProfileForm）
-  composables/               — 组合函数：useAuth / useGalgame / useComment / useLink / useFavorite / useArticle / useColorMode
-  stores/                    — Pinia 状态：auth.ts（token/isAdmin/userId/username/avatar，持久化到 localStorage）
-  middleware/                — 路由守卫：auth.ts（登录守卫）、admin.ts（管理员守卫）
-  types/                     — TypeScript 类型定义：index.ts（统一导出）、user.ts、galgame.ts、link.ts、comment.ts、article.ts
-  layouts/                   — 默认布局：default.vue（顶栏含文章导航链接 + 搜索飞出面板 + 设置面板 + 随机游戏 + 移动端抽屉）
-  utils/                     — request.ts（统一 API 请求，含自动 Bearer token 注入 + 401 处理）、
-                                file.ts（图片 base64 转换）、link.ts（URL 安全校验）、color.ts（封面主色提取）、format.ts（大小格式化）
-  plugins/                   — auth.client.ts（localStorage 登录态恢复）、element-plus.ts（EP 全局注册）
+main.py
+  └─ api/__init__.py（聚合 service_router）
+       └─ api/*.py（路由：参数校验、Depends 注入）
+            └─ deps.py（GetXxxService / GetCurrentUser / GetAdminUser / client_ip）
+                 └─ services/*.py（业务逻辑、commit、缓存失效）
+                      └─ models/*.py（SQLAlchemy 2.0 ORM）
 ```
 
-### 路由注册总表
+- 路由层保持很薄：不写业务逻辑，不直接操作 ORM。
+- 服务通过 `Depends(GetXxxService)` 构造，`db: AsyncSession` 由 `config.db.get_db` 提供；`get_db` 在请求正常结束时兜底 commit，异常时 rollback。
+- `config/__init__.py` 是配置统一出口；`utils/responsed.py` 定义 `info()` 与 `AppError` 异常族。
+- `utils/verify.py` 负责 JWT 与密码；`utils/sanitize.py` 负责评论消毒。
 
-| 路由文件 | 前缀 | 端点 |
-| --- | --- | --- |
-| `api/service/user.py` | `/api/v1/user` | login / register / update / delete / index(查看用户信息) |
-| `api/service/email.py` | `/api/v1/email` | send |
-| `api/service/galgame.py` | `/api/v1/galgame` | index(列表) / visit(详情) / rvisit(随机) / add / delete / edit |
-| `api/service/link.py` | `/api/v1/link` | get_list(按游戏) / get_list_by_user / add / review(编辑) / delete |
-| `api/service/comment.py` | `/api/v1/comment` | get_list(按目标, 支持 ?type=galgame\|article, 仅顶级评论分页+嵌套子评论) / get_list_by_user(扁平结构) / add(支持 parent_id/reply_to_id 嵌套回复) / edit / delete |
-| `api/service/favorite.py` | `/api/v1/favorite` | add / remove / visit(检查是否收藏) / list |
-| `api/service/search.py` | `/api/v1/search` | search |
-| `api/service/article.py` | `/api/v1/article` | index(列表, 支持 ?category) / visit(详情) / manage(个人管理) / add / edit / delete |
-| `api/admin/control.py` | `/api/admin/control` | BrowseGal / UpdateStatus / DeleteGal |
+### 响应与异常
 
-平台即用户：`delete`/`edit` 必须校验 `author_id == 当前用户`，非作者返回 403。删除用户时若其下有作品（galgame/article），外键 `ondelete="RESTRICT"` 触发 `IntegrityError`，`user.py` 已捕获返回 400。
+成功响应统一为：
 
-### 评论多态（receive_type）与嵌套评论
+```json
+{ "msg": "查询成功", "code": 200, "data": { "total": 0, "items": [] } }
+```
 
-评论系统通过 `receive_type` 字段实现多态，支持同时为 galgame 和 article 两个业务域服务：
+错误响应**不是**信封，而是 FastAPI 风格 `{"detail": "..."}`：
 
-- `ReceiveEnum.article = 0` → 文章评论
-- `ReceiveEnum.galgame = 1` → 游戏评论
+- 业务异常继承 `utils/responsed.AppError`（`BadRequest/Unauthorized/Forbidden/NotFound/Conflict/Busy/...`），由 `main.py` 的异常处理器转成对应 HTTP 状态码 + `detail`。
+- Pydantic 校验失败返回 422，`detail` 为数组；前端 `describeError` 会提取其中的中文 `msg`。
+- 新增接口必须用 `info(...)` 包装成功响应，否则前端统一解包会失败。
 
-评论列表端点 `GET /api/v1/comment/{target_id}?type=galgame|article` 根据 type 参数设置 `receive_type` 过滤。添加评论时同理。ORM 层面 `receive_id` 为裸 Integer（无外键约束），兼容多态目标。
+### 认证与安全
 
-**嵌套评论（2 层）**：
+- JWT HS256，有效期 **7 天**，载荷 `{sub, username, jti, iat, exp}`；**`is_admin` 不写入 token**，每次请求由 `deps.GetAdminUser` / `GetCurrentUser` 回库判定。
+- 登出把 `jti` 写入 Redis 黑名单（TTL 为剩余有效期）；每次 `decode_token` 都检查黑名单。
+- 密码使用 argon2；登录对不存在的账号也执行一次校验以抹平时序差异。
+- 限流（Redis 固定窗口，Redis 故障时放行）：登录 IP 60 次/5 分钟、账号 10 次/5 分钟；注册 IP 5 次/小时、邮箱 5 次/小时；验证码 IP 20 次/小时、邮箱 5 次/10 分钟；评论 20 次/分钟/用户。
+- 评论入库前用 nh3 白名单清洗；文章正文按 Markdown 原样存储，前端用 markdown-it `html: false` 渲染（不引入 DOMPurify）。
+- 用户被禁用（`status != 1`）时登录与鉴权均拒绝；管理员不能禁用自己或其他管理员。
 
-- **模型字段**（`model/comment.py`）：`parent_id`（自引用外键 `ForeignKey("comment.id", ondelete="CASCADE")`，`None` 表示顶级评论）、`reply_to_id`（被回复评论的作者 user_id，`None` 表示非回复）、`replies` 关系（`lazy="raise"`，需显式 `selectinload`）。
-- **2 层限制**：`add` 端点校验 `parent_id` 指向的父评论必须为顶级评论（`parent_comment.parent_id is None`），否则返回 400 `"不允许超过 2 层嵌套"`。
-- **`reply_to_id` 解析**：前端传的是被回复评论的 **评论 ID**，后端 `add` 端点自动查询该评论并将其 `author_id` 写入 `reply_to_id` 字段（即存储的是 user_id 而非 comment_id）。
-- **列表查询策略**：`get_list` 仅查询顶级评论（`parent_id IS NULL`）并分页，使用 `selectinload(Comment.replies).selectinload(Comment.author)` 批量加载子评论（避免 N+1），子评论按 `created_at` 正序排列。
-- **响应结构**：`CommentList.items` 为 `NestedCommentItems[]`（含 `replies: CommentItems[]` + `reply_count`）；`UserCommentList`（个人评论管理）保持扁平 `CommentItems[]` 结构，不含嵌套。
-- **数据库迁移**：需要 `ALTER TABLE comment ADD COLUMN parent_id INT NULL`（外键 `comment.id`，级联删除）和 `ADD COLUMN reply_to_id INT NULL`。
+### 缓存与 Redis 降级
+
+- 所有列表/详情缓存 key 带业务域版本号：`GAL_VERSION_KEY`、`LINK_VERSION_KEY`、`COMMENT_VERSION_KEY`、`ARTICLE_VERSION_KEY`、`USER_VERSION_KEY`、`SEARCH_VERSION_KEY`。
+- **任何增删改成功后必须使相关缓存失效**：`delete_cache_pattern(...)` + `update_version(对应域 KEY)`。评论变化会额外失效文章缓存；删除游戏会级联失效链接/评论版本。
+- 缓存 key 前缀约定：`Galgame:*`、`Gal_visit:*`、`Article:*`、`Article_visit:*`、`links:*`、`links_user:*`、`comments:*`、`comments_user:*`、`Search:*`。
+- `config/cache.py` 的读写失败降级为“未命中/不写入”；每次 Redis 操作有 2 秒超时，失败后熔断 30 秒。计数器通过 `redis_guard` 复用同一保护。登出写黑名单是失败关闭（Redis 故障会报错）。
+- Redis 不可用时验证码、限流、JWT 黑名单实际不可用，因此生产必须运行 Redis。
 
 ### 浏览量计数
 
-两个业务域各自独立的 Redis 哈希表 + 定时落库：
+- `utils/counter.py` 中 `ViewCounter`（`gal_views`）与 `ArticleViewCounter`（`article_views`）用 Redis Hash 累积增量。
+- `utils/scheduler.py` 每 10 分钟批量写回 `views` 列；详情接口返回 `数据库值 + Redis delta`。
+- 详情缓存 30 分钟，列表缓存默认 5 分钟，评论列表 2 分钟。
 
-- `ViewCounter`（HASH_KEY = `"gal_views"`）→ 游戏浏览量，同步到 `Galgame.views`
-- `ArticleViewCounter`（HASH_KEY = `"article_views"`）→ 文章浏览量，同步到 `Article.views`
+### 数据层约定
 
-定时任务（`utils/scheduler.py`）批量将增量写入数据库。详情端点使用 `incr()` 的实时 delta + 数据库存储值计算展示总数（`views_total + delta`）。
+- 集合侧关系（`.galgames`、`.links`、`.comments`、`.favorites`、`.articles`、`.replies`）全部 `lazy="raise"`；查询需要时显式 `selectinload()`。多对一侧（`.author`、`.galgame`）为 `lazy="selectin"`。
+- 删除聚合根时用 SQLAlchemy Core `delete(...)` 绕过 ORM 级联，再手动删除关联行（游戏删除链接/评论/收藏；评论删除子回复）。
+- 无 Alembic：表结构变更必须手动执行 DDL，并同步 `models/` 与 `sql/web1.sql`。
+- 历史字段拼写 `Galgame.platfrom`（非 platform）需保留，改列名要同步数据库与前后端。
+- 共享枚举在 `models/enums.py`；**models 不得反向依赖 schemas**。
+- 静态路由必须注册在 `/{id}` 之前（如 `/rvisit`、`/manage`），否则会被当作 id。
 
-### 数据层（config/db.py、model/）
+### 业务规则要点
 
-- SQLAlchemy 2.0 异步风格：`create_async_engine` + `async_sessionmaker`，MySQL 驱动 `aiomysql`。
-- `get_db()` 是一个 yield 依赖：正常自动 commit、异常回滚并重新抛出、finally 关闭会话。所有端点通过 `db: AsyncSession = Depends(get_db)` 注入。
-- **连接串来自环境变量**：`db.py` 用 `from config.security import ASYNC_DATABASE_URL`（非硬编码）；变量由 `backend/app/.env` 提供（`security.py` 的 `load_dotenv()` 按 CWD 加载，故须在 `backend/app` 下运行）。
-- **无 Alembic 迁移**：所有表需手动创建。
-- **关系加载**：集合侧（`.galgames` / `.links` / `.comments` / `.favorites` / `.articles` / `.replies`）均为 `lazy="raise"`——**任何查询都不应隐式全量加载关联集合**，需要时显式 `selectinload()`；多对一侧（`.author` / `.galgame`）保持 `lazy="selectin"`。
+- **Galgame**：`name` 唯一；`name/cn_name/jp_name/en_name` 至少填一个，缺省用其他名称兜底；新发布 `status=False`，需管理员审核；列表仅返回已公开，作者/管理员可看自己的未公开作品；编辑/删除校验 `author_id`。
+- **Article**：`category` 在数据库是逗号分隔字符串，API 输入可接受字符串或数组，输出为数组；发布即 `status=True`；无封面时用第一张插图或 `default/file.py` 默认封面；评论数通过子查询统计。
+- **Comment**：多态 `receive_type`（`article=0`、`galgame=1`），`receive_id` 为裸整数；嵌套仅 2 层；`parent_id` 指向顶级评论，`reply_to_id` 字段最终存的是**被回复用户的 user_id**（前端传的是评论 id，服务层解析）；顶级评论分页，子评论 `selectinload` 一次加载。
+- **Link**：新增即 `status=True`；URL 只允许 `http://` / `https://`；编辑/删除仅作者。
+- **Favorite**：`(user_id, gal_id)` 唯一约束；收藏数在 `galgame.favorite` 上同步增减。
+- **用户注销**：若仍有关联作品，外键 `RESTRICT` 触发 `IntegrityError`，返回 400。
 
-### 共享枚举（model/enums.py）
+### 端点总表
 
-`PlatformEnum`、`CategoryEnum`、`ReceiveEnum`、`SizeUnitEnum`、`SearchEnum` 定义在 `model/enums.py`（model 与 schemas 共同引用）。**model 层禁止反向依赖 schemas 层**，跨层共享的常量一律下沉到 `model/enums.py`。
+| 前缀 | 端点 |
+| --- | --- |
+| `/api/v1/user` | `POST /login`、`POST /register?code`、`POST /logout`、`PUT /update`、`DELETE /delete`、`GET /?id` |
+| `/api/v1/email` | `POST /send?email&purpose=register\|reset` |
+| `/api/v1/galgame` | `GET /`（page/size/category/platform/author_id/keyword/sort）、`GET /rvisit`、`GET /{id}`、`POST /add`、`PUT /edit?id`、`DELETE /delete?id` |
+| `/api/v1/link` | `GET /{game_id}`、`GET /user/{user_id}`、`POST /add?game_id`、`PUT /review?link_id`、`DELETE /delete?link_id` |
+| `/api/v1/comment` | `GET /{target_id}?type=galgame\|article`、`GET /user/{user_id}`、`POST /add?game_id&type`、`PUT /edit?comment_id`、`DELETE /delete?comment_id` |
+| `/api/v1/favorite` | `POST /add?gal_id`、`DELETE /remove?gal_id`、`GET /visit?gal_id`、`GET /list` |
+| `/api/v1/search` | `GET /?keyword&search_type=name\|tag\|company&page&size` |
+| `/api/v1/article` | `GET /`、`GET /manage`、`GET /{id}`、`POST /add`、`PUT /edit?id`、`DELETE /delete?id` |
+| `/api/admin/control` | `GET Stats`、`GET BrowseGal?status=pending\|published\|all`、`PUT UpdateStatus?gal_id&status`、`DELETE DeleteGal?gal_id`、`GET Users?keyword`、`PUT UserStatus?user_id&status`、`GET Articles?status=all\|published\|hidden`、`PUT UpdateArticleStatus?article_id&status`、`DELETE DeleteArticle?article_id` |
+| `/api/health` | 健康检查 |
 
-### 前端架构重要约定
+游戏列表的 `keyword` 只匹配三个名称字段；标签/公司搜索走 `/api/v1/search/`。
 
-- **深色模式独家**：项目已移除亮色模式，仅保留深色模式。`nuxt.config.ts` 内联脚本始终添加 `dark` class。`useColorMode.ts` 仅返回 `isDark: ref(true)`。
-- **SSR 水合一致性**：`layouts/default.vue` 使用 `isMounted` 门控，挂载前统一渲染"未登录"状态，避免水合 mismatch。
-- **路由守卫**：`middleware/auth.ts`（登录守卫）、`middleware/admin.ts`（管理员守卫，客户端判断，SSR 阶段放行）。
-- **类型对齐**：`types/` 下的 TypeScript 类型与后端 `schemas/` 严格对齐，枚举传输中文值（如 `"电脑端"`、`"剧情向"`）。
-- **前端请求代理**：`nuxt.config.ts` 的 `routeRules: { '/api/**': { proxy: process.env.NUXT_API_BASE || 'http://localhost:8000' } }`，前后端开发时通过 Nitro 代理规避 CORS。`utils/request.ts` 的 `api()` 自动附加 `Authorization` 头、401 时清理登录态并跳转。
-- **设置面板与背景系统**：`layouts/default.vue` 内嵌 `el-dialog` 设置面板（左右结构：菜单侧栏 + 内容区），外观 Tab 控制 `--fish-brightness`/`--fish-alpha`/`--fish-shadow-intensity` CSS 变量，背景 Tab 用 `import.meta.glob` 发现 `public/background/` 图片并设置 `--fish-bg-image`。所有设置持久化到 localStorage。**默认背景**：`defaultBg` 计算属性查找 `public/background/2.png`，`onMounted` 中用户无保存背景设置时自动应用。**管理入口**：设置面板侧栏底部新增"管理"菜单项（仅管理员可见，带分隔线与 ArrowRight 跳转图标），点击关闭设置面板并跳转 `/admin`。
-- **卡片透明化**：GameCard、MyGames、MyArticles 等卡片设置 `background: transparent`，露出 body 的背景图片与深色遮罩层。
-- **状态插图**：错误/空状态统一使用 `public/status/1.png`（加载失败）或 `public/status/2.png`（空数据）。
+### 图片上传
 
-### 导航栏链接
+- `utils/cloudinary.py` 全是同步函数（PIL CPU 密集 + Cloudinary 同步 HTTP），必须通过 `services/image.py` 的 `asyncio.to_thread` 调用，不要在 async 端点里直接调用。
+- base64 输入限制：解码后 ≤ 5MB、像素 ≤ 50MP；统一转 WebP（quality 75）并缩放后上传；失败返回 `None` 或 `{status: False}`，`ImageService` 会转成 422。
+- 已托管 URL（`http(s)://`）直接复用；仅 base64 新图上传。头像/封面/截图/文章插图分别使用不同 Cloudinary 文件夹。
 
-顶栏导航包含：首页、全部游戏、随机（触发 `/api/v1/galgame/rvisit`）、文章（指向 `/articles`）、关于（指向 `/about`）、发布（登录后显示）、登录/注册（未登录显示）。移动端抽屉同步包含以上链接。
+## 前台 Web（`frontend/`）
 
-### 认证与安全（config/security.py、utils/verify_user.py）
+- Nuxt 4 默认 `app/` 作为源码目录；Tailwind v4 通过 `vite.plugins: [tailwindcss()]` 接入，样式在 `app/assets/css/main.css`。项目**只有深色模式**，无 Element Plus/Pinia。
+- 设计体系：`app.vue` 全屏背景 + 深色遮罩 + 玻璃卡片（`.glass-panel`、`.glass-card`、`.btn-primary` 等）；`useAppearance` 管理背景图/亮度/遮罩，持久化到 `localStorage` 的 `fishmo_appearance`，默认 `/background/2.jpg`。
+- API 基地址：`useApiBase()` 在 SSR 用私有 `runtimeConfig.apiBaseServer`，浏览器用 `public.apiBase`；生产 `public.apiBase='/api'`，SSR 仍直连后端。浏览器端有“回环地址防呆”，线上配置成 localhost 会回退 `/api`。
+- `useApi()` 统一注入 Bearer、拆开 `{msg, code, data}`、抛 `ApiError`；401 时清空登录态（可用 `keepAuthOn401` 关闭）。
+- 登录态：`useAuth()` 使用 `useState`（`auth-token` / `auth-user` / `auth-ready`），持久化 key 为 `fishmo_access_token`、`fishmo_user`；`plugins/auth.client.ts` 在客户端恢复，SSR 不读 localStorage。UI 依赖登录态时必须用 `ready` / `mounted` 门控，避免水合不一致。
+- 路由守卫 `middleware/auth.ts` 只在客户端运行：未登录时打开全局 `AuthDialog` 并跳回首页，登录后按 `?redirect` 返回原页面。发布页与个人管理页使用该守卫。
+- 数据获取：公开页面用 `useAsyncData` + SSR；key 通常包含 `route.fullPath`（如 `games-${route.fullPath}`）。列表筛选全部由 URL query 驱动。依赖 token 的私有数据使用 `server: false`。
+- 评论渲染使用后端已消毒的 HTML（`v-html`）；文章 Markdown 由 `utils/markdown.ts` 渲染，`html: false`。
+- 图片上传先用 `utils/file.ts` 在浏览器缩放并转 WebP base64，再提交给后端。
+- 类型集中在 `app/types/index.ts`，与后端 schemas 对齐；枚举线上传中文值（`"电脑端"`、`"剧情向"`）。
 
-- JWT（HS256）：`SECRET_KEY` / `ALGORITHM` 从 `config.security` 导入。变量均由环境变量注入（`backend/app/.env`），**无代码内默认值**，缺 `.env` 时 `SECRET_KEY` 为 None、JWT 签发/校验会失败。
-- JWT payload 包含 `{sub: str(user.id), username, is_admin}`。
-- 密码哈希：`passlib` 的 `CryptContext(schemes=["argon2"])`。
-- **用户鉴权**：路由内 `security = HTTPBearer(auto_error=False)`，业务端点先 `verify_login(credentials)` 解析 user_id；缺 token / token 无效统一 `401`。
-- **管理员鉴权**：`verify_admin(credentials)` 解析 JWT 中的 `is_admin` 字段，非管理员返回 `False`（admin 端点据此返回 `403`）。
+## 管理端（`admin/`）
 
-### 缓存（config/cache.py）
+- 独立 Nuxt 4 SPA（`ssr: false`，端口 3001），共享前台深色玻璃风格，但**独立登录态**：`fishmo_admin_token` / `fishmo_admin_user`。
+- `useAdminAuth.login()` 复用 `/api/v1/user/login`，客户端拒绝非 `is_admin` 账号；后端每个管理端点还会回库校验管理员身份。
+- `middleware/auth.global.ts` 对所有页面生效：未登录跳 `/login?redirect=...`；登录页 `layout: false`。
+- `useAdminApi()` 负责 Bearer、信封解包、401 清理并跳登录页。
+- 页面：概览（`index.vue`）、游戏审核（`games.vue`）、用户管理（`users.vue`）、文章管理（`articles.vue`）。审核/下架/禁用等操作成功后刷新列表。
 
-- `redis.asyncio` 客户端（localhost:6379），惰性连接，不阻塞启动。
-- 提供 `get_from_cache` / `set_to_cache` / `delete_cache` / `delete_cache_pattern` / `get_cache_key`，以及基于版本计数器的版本化缓存失效模式（`get_search_version` / `update_version`）。
-- **版本计数按业务域拆分**：`GAL_VERSION_KEY` / `LINK_VERSION_KEY` / `COMMENT_VERSION_KEY` / `ARTICLE_VERSION_KEY`（全局 `SEARCH_VERSION_KEY` 保留向后兼容），某域增删改只自增该域版本号。
-- **约定**：列表/详情缓存 key 一律带 `version`；**任何增删改成功都必须 `await update_version(对应域KEY)` 并使相关 key 失效**，否则缓存继续服务旧数据。注意所有缓存函数均为 async，必须 `await`。
-- **评论缓存 key 格式**：列表 key 为 `get_cache_key("comments", receive_id=target_id, type=type, page=page, size=size, version=version)`；用户评论 key 为 `get_cache_key("comments_user", user_id=user_id, page=page, size=size, version=version)`。增删改后同时 `delete_cache_pattern("comments:*")` 和 `delete_cache_pattern("comments_user:*")` + `update_version(COMMENT_VERSION_KEY)`。
+## 修改代码时的硬性约定
 
-### 图片上传（utils/webp.py）
-
-- 全部为**同步函数**（PIL 解码 CPU 密集 + Cloudinary 同步 HTTP），从 async 端点调用必须用 `run_in_threadpool` 包裹（或 `asyncio.to_thread`），否则阻塞事件循环。
-- 反压缩炸弹防护：单图 base64 解码后 ≤ 5MB、像素 ≤ 50MP；**失败返回 `None`，调用方必须判空**，不能把 None 当成功结果用。
-- 统一转 WebP（quality 75）等比缩放后上传，返回 `{status, url, public_id}` 或 `{status: False, error}`。
-- 编辑时已托管 URL（`http://`/`https://` 开头）直接复用，不重复上传；仅 base64 新图走上传流程。
-
-## 文章模块说明
-
-### 后端
-
-- **模型**（`model/article.py`）：`Article` 表含 `title`/`content`(Text)/`cover`/`category`(逗号分隔String)/`tag`(JSON)/`images`(JSON)/`status`(bool)/`views`(int)/`author_id`(FK→user)。
-- **路由**（`api/service/article.py`）：
-  - `GET /` — 公开列表（只返回 status=True），支持 `?category` LIKE 筛选 + 评论数子查询 + 分页 + Redis 缓存
-  - `GET /{id}` — 详情（浏览量计数 + 缓存，管理员可查看未公开）
-  - `GET /manage` — 个人管理列表（仅作者，`?page&size`）
-  - `POST /add` — 发布（自动 status=True，图片上传 Cloudinary）
-  - `PUT /edit` — 编辑（校验作者身份）
-  - `DELETE /delete` — 删除（校验作者身份）
-- **缓存失效**：任何增删改后 `delete_cache_pattern("Article:*")` + `update_version(ARTICLE_VERSION_KEY)`。
-
-### 前端
-
-- **文章列表页**（`pages/articles/index.vue`）：4 列网格布局，分类标签筛选（攻略/资讯/公告/教程/其他），16:10 封面，浏览量/评论数徽标，分页，SSR 友好。
-- **文章详情页**（`pages/article/[id].vue`）：Markdown 渲染（markdown-it + DOMPurify），21:9 宽幅封面（移动端 16:9），统计数据行，标签链接，插图画廊（预览模式），评论区（`CommentList type="article"`）。
-- **文章发布页**（`components/article/ArticleForm.vue`）：双栏布局（左侧栏：分类/标签/封面设定，右侧：标题 + Markdown 编辑器 + 工具栏 + 预览切换 + 插图上传），草稿自动保存（localStorage，每 30s + 内容变更触发）。
-- **文章编辑页**（`pages/manage/article/[id].vue`）：复用 ArticleForm + 作者身份校验。
-- **管理组件**（`components/manage/MyArticles.vue`）：小型卡片网格（仅 name + cover），编辑/删除按钮，类似 GameCard 风格。
-- **首页文章弹出面板**（`components/article/ArticlePopup.vue`）：4 列网格，快速浏览文章列表，入口指向 `/articles`。
-
-## 关于页面
-
-- **关于页面**（`pages/about.vue`）：网站介绍（fishmo — Galgame 信息发布社区与文章博客平台）、主要功能列表（发布游戏/分享文章/评论互动/收藏游戏）、技术栈标签、GitHub 开源链接（https://github.com/zicimn/fishmo）、联系邮箱（fwioe77@gmail.com）。纯静态页面，无后端接口依赖。
-- **管理控制台组件**（`components/admin/AdminControl.vue`）：独立的管理控制组件，封装待审核游戏列表 + 审核操作（通过/拒绝/删除），可供 admin 页面或其他管理界面复用。当前 `pages/admin/index.vue` 保留独立实现，二者逻辑一致。
-
-## 已知限制（开发时需注意）
-
-1. **JWT 无过期时间**：`jwt.encode` 未带 `exp`，token 签发后永久有效。
-2. **CORS**：`allow_origins=["*"]` + `allow_credentials=True` 组合不符合浏览器规范，生产需白名单化。
-3. **无 Alembic 迁移**：表结构变更需手动 DDL，model 文件变更后务必同步数据库。
-4. **字段拼写**：`platfrom`（应为 platform）、`update_at`（应为 updated_at）为既有拼写，改动需数据库迁移。
-5. **无测试/lint/CI**：修改后需手动验证。
-6. **`logs/` 目录不应纳入版本控制**：需在 `.gitignore` 中添加 `logs/` 和 `*.log`。
-7. **无输入净化/XSS 防护**：评论内容、文章内容等用户输入字段在存储前未做 sanitize。前端仅通过 DOMPurify 在**渲染时**消毒 Markdown 输出，数据库层存储原始内容。如需 HTML 富文本场景，需补充后端 `sanitize_html()` 逻辑。
-8. **无边限流**：登录、评论、发送验证码等端点无防滥用限流，后续可在 `config/cache.py` 中补充 `rate_limit()` 后接入。
-9. **"查看全部回复"按钮为 UI 占位**：评论组件 `CommentList.vue` 中的"查看全部 N 条回复"按钮当前无实际分页加载逻辑（子评论一次性全部加载），仅作为后续分页加载的 UI 预留。
+1. **后端命令必须在 `app/` 下执行**；新增文件使用 `from config import ...`、`from models import ...` 这类绝对导入。
+2. **新接口成功响应必须用 `info()`**；错误抛 `AppError` 子类，不要手写 `JSONResponse`。
+3. **任何写操作都要考虑缓存失效**：至少 bump 对应域版本号并删除相关列表/详情 key；涉及评论数时同步文章缓存。
+4. **新增集合关系一律 `lazy="raise"`**，查询时显式 `selectinload`；删除聚合时优先用 Core `delete` + 手动关联删除。
+5. **接口契约变更三处同步**：后端 `schemas/` + `services/` 的响应构造函数、前台 `app/types/index.ts`、管理端 `admin/app/types/index.ts`（若涉及）。
+6. **异步端点不要直接调用同步图片/邮件函数**，用 `asyncio.to_thread`（或 `ImageService`）。
+7. **SSR 水合**：不要在渲染期直接读 `localStorage`/`window`；用客户端插件或 `onMounted`，并用 `ready`/`mounted` 门控依赖登录态的 UI。
+8. 新增页面路由注意静态路径先于 `/{id}` 动态路由。
+9. 不提交 `app/.env`、`logs/`、构建产物；仓库当前无自动化测试，改完至少运行后端 import、两端 `nuxi typecheck` 与 `npm run build`，并手动验证相关接口。
